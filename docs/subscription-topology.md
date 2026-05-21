@@ -7,7 +7,7 @@ lifecycle status. Per [CLAUDE.md §3](../CLAUDE.md).
 
 | Subscription | Role | MG placement | Lifecycle status |
 |---|---|---|---|
-| `keystone-platform-management` | Log Analytics, diagnostic settings, cost exports, Terraform state SA | `keystone-platform-management` | **Pending vending (first)** — within current MCA quota |
+| `keystone-platform-management` | Log Analytics, diagnostic settings, cost exports, Terraform state SA | `keystone-platform-management` | **Vended 2026-05-21** (Phase 1) |
 | `keystone-platform-connectivity` | Hub VNet, Firewall Basic, Private DNS zones | `keystone-platform-connectivity` | Pending — blocked on MCA quota increase |
 | `keystone-platform-identity` | Custom RBAC, platform-scoped managed identities | `keystone-platform-identity` | Pending — blocked on MCA quota increase |
 | `keystone-reelhouse-dev` | ReelHouse workload — dev | `keystone-landing-zones-corp` | Pending — blocked on MCA quota increase |
@@ -37,6 +37,19 @@ Tenant Root
 - Staging plan: vend `keystone-platform-management` immediately
   (5/5 slot, within current cap); vend the remaining four once the
   quota ticket is approved.
+
+### Phase 1 — applied 2026-05-21
+
+`platform/05-subscriptions` applied with `vend_phase = "phase-1"`.
+`keystone-platform-management` is now active and at 5/5 of the current
+MCA quota. Sub ID captured into `~/.keystone/secrets.env` as
+`KEYSTONE_PLATFORM_MANAGEMENT_SUBSCRIPTION_ID`.
+
+### Phase 2 — pending
+
+Blocked on the quota ticket. When approved, re-apply with
+`-var="vend_phase=phase-2"`; the for_each map merges in the remaining
+four subs without disturbing the existing Management sub.
 
 ## Lifecycle rules
 
