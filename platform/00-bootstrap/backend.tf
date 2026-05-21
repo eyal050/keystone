@@ -22,11 +22,16 @@
 # from this directory.
 
 terraform {
-  backend "local" {
-    path = "terraform.tfstate"
-  }
+  # State migrated from local to azurerm on 2026-05-21. The state SA
+  # itself is created by this layer — see README.md for the two-pass
+  # init procedure and the recovery notes in
+  # docs/break-debug-log.md.
 
-  # backend "azurerm" {
-  #   # Values supplied via terraform init -backend-config=... — see README.md.
+  # backend "local" {
+  #   path = "terraform.tfstate"
   # }
+
+  backend "azurerm" {
+    # Values supplied via terraform init -backend-config=... — see README.md.
+  }
 }

@@ -12,11 +12,14 @@
 #     -backend-config="key=platform-05-subscriptions.tfstate"
 
 terraform {
-  backend "local" {
-    path = "terraform.tfstate"
-  }
+  # State migrated from local to azurerm on 2026-05-21. The state SA
+  # is created by platform/00-bootstrap in keystone-platform-management.
 
-  # backend "azurerm" {
-  #   # Values supplied via terraform init -backend-config=... — see README.md.
+  # backend "local" {
+  #   path = "terraform.tfstate"
   # }
+
+  backend "azurerm" {
+    # Values supplied via terraform init -backend-config=... — see README.md.
+  }
 }
