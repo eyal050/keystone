@@ -1,0 +1,99 @@
+# Secrets Inventory
+
+This file is the source of truth for **what sensitive values Keystone needs**
+and how to obtain each one. Per [CLAUDE.md §6](../CLAUDE.md), no actual values
+appear here — only names and retrieval instructions.
+
+If you are cloning this repo onto a new laptop, this file is your setup
+checklist. Walk through each entry in order; once `~/.keystone/secrets.env`
+is populated, the local Terraform commands are ready to run.
+
+## Where secrets live
+
+Two locations only:
+
+1. **Your laptop**, at `~/.keystone/secrets.env` (file `600`, directory `700`).
+   Source it before any `terraform` or `az` command:
+   ```bash
+   source ~/.keystone/secrets.env
+   ```
+2. **GitHub Actions secrets**, scoped to the appropriate GitHub Environment.
+
+The local file and the CI secret must hold the **same value** for each
+variable. Drift between them is its own bug class.
+
+## Inventory
+
+### `KEYSTONE_TENANT_ID`
+
+Microsoft Entra ID tenant ID for the Azure tenant this lab runs in.
+
+- **Purpose**: identifies the tenant the `azurerm` provider authenticates against.
+- **Retrieve**:
+  ```bash
+  az account show --query tenantId -o tsv
+  ```
+- **Format**: GUID (`00000000-0000-0000-0000-000000000000`).
+- **CI scope**: every GitHub Environment uses this. Promote to repo-level secret once CI lands.
+
+### `KEYSTONE_MCA_BILLING_ACCOUNT_ID`
+
+Microsoft Customer Agreement billing account ID.
+
+- **Purpose**: parent of the billing profile; needed when looking up profiles and invoice sections.
+- **Retrieve**:
+  ```bash
+  az billing account list --query "[].{Name:displayName, ID:name}" -o table
+  ```
+- **Format**: `<guid>:<guid>_<date>`.
+- **CI scope**: `platform-subscriptions` environment only (consumed by `platform/05-subscriptions`).
+
+### `KEYSTONE_MCA_BILLING_PROFILE_ID`
+
+Full ARM path of the MCA billing profile.
+
+- **Purpose**: parent of the invoice section; needed to list invoice sections.
+- **Retrieve** (uses `KEYSTONE_MCA_BILLING_ACCOUNT_ID`):
+  ```bash
+  az billing profile list \
+    --account-name "$KEYSTONE_MCA_BILLING_ACCOUNT_ID" \
+    --query "[].{Name:displayName, ID:id}" -o table
+  ```
+- **Format**: `/providers/Microsoft.Billing/billingAccounts/.../billingProfiles/...`
+- **CI scope**: `platform-subscriptions` environment only.
+
+### `KEYSTONE_MCA_BILLING_SCOPE_ID`
+
+Full ARM path of the MCA invoice section. **This is the `billing_scope_id`
+that Terraform passes to `azurerm_subscription` to vend a new sub.**
+
+CLAUDE.md §6 calls this out as the most likely accidental leak in the project — handle with care.
+
+- **Purpose**: declares where new subscriptions are billed.
+- **Retrieve** (uses `KEYSTONE_MCA_BILLING_PROFILE_ID`; the `invoice-section`
+  subcommand is missing from current `az` CLI builds, so use `az rest`):
+  ```bash
+  az rest --method get \
+    --url "https://management.azure.com${KEYSTONE_MCA_BILLING_PROFILE_ID}/invoiceSections?api-version=2020-05-01" \
+    --query "value[].{Name:properties.displayName, ID:id}" -o table
+  ```
+- **Format**: `/providers/Microsoft.Billing/billingAccounts/.../billingProfiles/.../invoiceSections/...`
+- **CI scope**: `platform-subscriptions` environment only.
+
+## Adding a new secret
+
+When a new sensitive value enters the project:
+
+1. Add an `export VAR_NAME="<placeholder>"` line to `secrets.example.env` with a comment explaining what it is and how to obtain it.
+2. Add a section in this file with purpose, retrieval, format, and CI scope.
+3. Declare the corresponding variable in the consuming Terraform layer's `variables.tf` with `sensitive = true`.
+4. Stop and prompt yourself (or Claude) with the CLAUDE.md §6 protocol block before committing any code that references the variable.
+
+## What is NOT a credential but still belongs in this file
+
+Some values aren't secrets-in-the-API-key sense but still identify a
+specific Azure tenancy and must not appear in a public repo:
+
+- Tenant ID, billing account / profile / scope IDs (above)
+- Subscription IDs (GUIDs) — tracked here once subs are vended
+- Personal email, home IP, real machine hostname — never in committed files

@@ -1,0 +1,13 @@
+# Per CLAUDE.md Section 6: if a *.tfvars or *.env file is ever accidentally
+# committed, mark it binary so git won't render its contents in diffs or
+# blame views — minimizes the blast radius until the leak is noticed and
+# the value is rotated.
+#
+# The .example versions are public contracts and must show diffs normally.
+
+*.tfvars         binary
+*.tfvars.json    binary
+*.env            binary
+
+*.tfvars.example text
+secrets.example.env text

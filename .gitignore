@@ -1,0 +1,35 @@
+# Terraform
+.terraform/
+.terraform.tfstate.lock.info
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Terraform variable files — may contain sensitive values.
+# See CLAUDE.md Section 6. Real values live in ~/.keystone/secrets.env
+# or in GitHub Actions environment secrets, never in this repo.
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Environment files — same rule as above.
+*.env
+!secrets.example.env
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Local make / tool output
+*.log
