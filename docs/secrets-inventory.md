@@ -80,6 +80,23 @@ CLAUDE.md §6 calls this out as the most likely accidental leak in the project �
 - **Format**: `/providers/Microsoft.Billing/billingAccounts/.../billingProfiles/.../invoiceSections/...`
 - **CI scope**: `platform-subscriptions` environment only.
 
+### `KEYSTONE_VENDING_CONTEXT_SUBSCRIPTION_ID`
+
+Subscription ID (GUID) of an existing subscription in this tenant that
+Eyal already has access to — used purely as the `azurerm` provider's
+auth context when vending new subscriptions. Subscription vending
+operates at MCA billing scope, not at this sub.
+
+- **Purpose**: gives `platform/05-subscriptions` a sub to authenticate
+  against. Any sub Eyal has rights to is acceptable; the choice has no
+  side effect on the resources being created.
+- **Retrieve**:
+  ```bash
+  az account list --query "[?state=='Enabled'].{Name:name, ID:id}" -o table
+  ```
+- **Format**: GUID.
+- **CI scope**: `platform-subscriptions` environment only (consumed by `platform/05-subscriptions`).
+
 ### `KEYSTONE_PLATFORM_MANAGEMENT_SUBSCRIPTION_ID`
 
 Subscription ID (GUID) of the `keystone-platform-management` subscription

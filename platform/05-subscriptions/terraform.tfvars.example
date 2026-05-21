@@ -1,0 +1,21 @@
+# Local non-secret tfvars for platform/05-subscriptions.
+#
+# Sensitive values (tenant_id, vending_subscription_id, billing_scope_id)
+# come from environment variables sourced from ~/.keystone/secrets.env —
+# do not put them here.
+#
+# To use:
+#   cp terraform.tfvars.example terraform.tfvars   # gitignored
+#   source ~/.keystone/secrets.env
+#   export TF_VAR_tenant_id="$KEYSTONE_TENANT_ID"
+#   export TF_VAR_vending_subscription_id="$KEYSTONE_VENDING_CONTEXT_SUBSCRIPTION_ID"
+#   export TF_VAR_billing_scope_id="$KEYSTONE_MCA_BILLING_SCOPE_ID"
+#   terraform init && terraform plan
+#
+# Phase 1 (Management sub only — within current MCA quota):
+#   terraform apply   # vend_phase defaults to "phase-1"
+#
+# Phase 2 (after MCA quota ticket is approved):
+#   terraform apply -var="vend_phase=phase-2"
+
+# vend_phase = "phase-1"   # default; override to "phase-2" once quota lands
