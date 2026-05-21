@@ -80,6 +80,28 @@ CLAUDE.md §6 calls this out as the most likely accidental leak in the project �
 - **Format**: `/providers/Microsoft.Billing/billingAccounts/.../billingProfiles/.../invoiceSections/...`
 - **CI scope**: `platform-subscriptions` environment only.
 
+### `KEYSTONE_PLATFORM_MANAGEMENT_SUBSCRIPTION_ID`
+
+Subscription ID (GUID) of the `keystone-platform-management` subscription
+vended by `platform/05-subscriptions`.
+
+This variable is **empty until Phase 1 of [ADR-0009](decisions/0009-subscription-staging-management-first.md)
+completes** — i.e., until 05-subscriptions has been applied and vended
+the Management sub. Once populated, `platform/00-bootstrap` can run and
+create the state storage account in this subscription.
+
+- **Purpose**: tells `platform/00-bootstrap` (and every subsequent layer
+  that reads the state SA) which subscription holds the management plane.
+- **Retrieve** (after 05-subscriptions apply):
+  ```bash
+  cd platform/05-subscriptions
+  terraform output -raw mgmt_subscription_id
+  ```
+- **Format**: GUID (`00000000-0000-0000-0000-000000000000`).
+- **CI scope**: `platform-management`, `platform-connectivity`,
+  `platform-identity`, and every workload Environment — every CI job that
+  needs to read remote state needs the Management sub ID.
+
 ## Adding a new secret
 
 When a new sensitive value enters the project:

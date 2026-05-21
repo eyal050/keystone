@@ -1,0 +1,18 @@
+# Local non-secret tfvars for platform/00-bootstrap.
+#
+# Sensitive values (tenant_id, mgmt_subscription_id) MUST NOT live here.
+# They come from environment variables sourced from ~/.keystone/secrets.env
+# via the TF_VAR_<name> convention.
+#
+# To use this layer:
+#   cp terraform.tfvars.example terraform.tfvars   # gitignored
+#   source ~/.keystone/secrets.env
+#   export TF_VAR_tenant_id="$KEYSTONE_TENANT_ID"
+#   export TF_VAR_mgmt_subscription_id="$KEYSTONE_PLATFORM_MANAGEMENT_SUBSCRIPTION_ID"
+#   terraform init && terraform plan
+#
+# location and location_short have defaults that match ADR-0002. Override
+# only when working in a non-default region.
+
+# location       = "westeurope"
+# location_short = "weu"
