@@ -1,0 +1,46 @@
+# Keystone gitleaks configuration — see CLAUDE.md Section 6.
+#
+# Extends the default gitleaks ruleset (covers Azure storage keys, SAS,
+# JWTs, generic API keys, etc.) with project-specific patterns that
+# matter most for an MCA + ESLZ lab.
+
+title = "Keystone gitleaks config"
+
+[extend]
+useDefault = true
+
+# --- Project-specific rules -------------------------------------------------
+
+[[rules]]
+id = "keystone-mca-invoice-section-id"
+description = "MCA invoice section ID (Terraform billing_scope_id). CLAUDE.md Section 6 calls this out as the most likely accidental leak."
+regex = '''/providers/Microsoft\.Billing/billingAccounts/[^/\s"']+/billingProfiles/[^/\s"']+/invoiceSections/[^/\s"']+'''
+tags = ["azure", "mca", "billing", "high-severity"]
+
+[[rules]]
+id = "keystone-mca-billing-profile-path"
+description = "MCA billing profile ARM path. Parent of invoice section — equally sensitive."
+regex = '''/providers/Microsoft\.Billing/billingAccounts/[^/\s"']+/billingProfiles/[^/\s"']+'''
+tags = ["azure", "mca", "billing", "high-severity"]
+
+[[rules]]
+id = "keystone-mca-billing-account-id"
+description = "MCA billing account ID composite format: <guid>:<guid>_<YYYY-MM-DD>."
+regex = '''\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}_\d{4}-\d{2}-\d{2}\b'''
+tags = ["azure", "mca", "billing"]
+
+# --- Allowlist --------------------------------------------------------------
+#
+# Files that legitimately contain placeholder versions of the patterns above
+# (documentation referencing the shape of an ID, example/template files).
+# Real values must never appear in these files either — humans review them.
+
+[allowlist]
+description = "Public-contract files that may reference placeholder MCA ID shapes."
+paths = [
+  '''^secrets\.example\.env$''',
+  '''.*\.tfvars\.example$''',
+  '''^docs/secrets-inventory\.md$''',
+  '''^CLAUDE\.md$''',
+  '''^\.gitleaks\.toml$''',
+]

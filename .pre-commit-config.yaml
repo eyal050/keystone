@@ -1,0 +1,27 @@
+# Pre-commit hooks for Keystone — see CLAUDE.md Section 6.
+#
+# Setup (once per laptop):
+#   pipx install pre-commit          # or: pip install --user pre-commit
+#   pre-commit install                # activates the .git/hooks/pre-commit shim
+#
+# Run on demand:
+#   pre-commit run --all-files
+#
+# Note: gitleaks is fetched and cached by pre-commit; no separate install needed.
+# pre-commit-terraform will be added in Chunk C, once Terraform files exist.
+
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=500']
