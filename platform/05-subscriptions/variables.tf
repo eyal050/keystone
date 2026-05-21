@@ -7,12 +7,24 @@ variable "tenant_id" {
   description = "Microsoft Entra tenant ID. Sourced from KEYSTONE_TENANT_ID in ~/.keystone/secrets.env."
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = can(regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", var.tenant_id))
+    error_message = "tenant_id must be a valid GUID. Did you `source ~/.keystone/secrets.env && export TF_VAR_tenant_id=\"$KEYSTONE_TENANT_ID\"`?"
+  }
 }
 
 variable "vending_subscription_id" {
   description = "Any existing subscription Eyal has access to in this tenant. Used by the azurerm provider purely as an auth context — subscription vending operates at billing scope, not at this sub. Sourced from KEYSTONE_VENDING_CONTEXT_SUBSCRIPTION_ID in ~/.keystone/secrets.env."
   type        = string
   sensitive   = true
+
+  # See note on mgmt_subscription_id in platform/00-bootstrap/variables.tf —
+  # GUID validation catches the empty-falls-through-to-az-default bug class.
+  validation {
+    condition     = can(regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", var.vending_subscription_id))
+    error_message = "vending_subscription_id must be a valid GUID — empty or malformed values cause the provider to silently use the az CLI default subscription. Did you `source ~/.keystone/secrets.env && export TF_VAR_vending_subscription_id=\"$KEYSTONE_VENDING_CONTEXT_SUBSCRIPTION_ID\"`?"
+  }
 }
 
 variable "billing_scope_id" {

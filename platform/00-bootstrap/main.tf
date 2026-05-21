@@ -3,6 +3,14 @@
 # Creates the resource group, storage account, and blob container that
 # every other Keystone layer uses for its remote state. See ADR-0007.
 
+# Resolve the target subscription so we can guard against the
+# 2026-05-21 incident class: even if a *valid GUID* is passed (so
+# the variable-level validation passes), this precondition fails plan
+# if the GUID does not resolve to the expected subscription display name.
+data "azurerm_subscription" "mgmt" {
+  subscription_id = var.mgmt_subscription_id
+}
+
 # Globally-unique suffix for the storage account name. Stored in state
 # so the name remains stable across re-plans.
 resource "random_id" "tfstate_suffix" {
@@ -17,6 +25,11 @@ resource "azurerm_resource_group" "tfstate" {
 
   lifecycle {
     prevent_destroy = true
+
+    precondition {
+      condition     = data.azurerm_subscription.mgmt.display_name == "keystone-platform-management"
+      error_message = "var.mgmt_subscription_id resolves to subscription '${data.azurerm_subscription.mgmt.display_name}' but expected 'keystone-platform-management'. The bootstrap layer creates the state storage account inside the Management sub — applying it elsewhere is the 2026-05-21 incident class."
+    }
   }
 }
 
