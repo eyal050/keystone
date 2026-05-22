@@ -13,8 +13,9 @@ as a daily blob export.
 | Sub-chunk | Status | Contents |
 |---|---|---|
 | **F1** | ✅ landed | Log Analytics workspace + its RG |
-| **F2** | pending | `DeployIfNotExists` diagnostic-settings policy + managed identity role assignment — the [CLAUDE.md §8](../../docs/break-debug-log.md) break/debug scenario |
-| **F3** | pending | MCA cost data → daily blob export → state SA |
+| **F2a** | ✅ landed | `DeployIfNotExists` storage→LAW diagnostic-settings policy with SystemAssigned MI + explicit role assignments |
+| **F2b** | pending | Deliberate break exercise — [CLAUDE.md §8](../../docs/break-debug-log.md) silent-non-compliance scenario |
+| **F3** | ✅ landed | MCA cost data → daily blob export to `cost-exports` container in the state SA |
 | **F4** | pending | Per-subscription budget alerts (€100 workload, €900 connectivity, €20 other) per CLAUDE.md §7 |
 
 ## What F1 created
@@ -27,6 +28,31 @@ Cost shape: **consumption-only**. ~€2.50/GB ingested in westeurope.
 Retention beyond 30 days adds ~€0.10/GB/mo for the retained data. Lab
 volumes are expected to be <1 GB/mo once F2 lights up diagnostic
 settings, so realised cost ≈ a few euro/month.
+
+## One-time prereq: Microsoft.CostManagementExports RP registration
+
+F3's cost-management export targets a storage account in
+`keystone-platform-management`. Before the export resource can be
+created, the **destination subscription** (i.e., the sub holding the
+SA) must have the `Microsoft.CostManagementExports` resource provider
+registered. New MCA-vended subs don't have it by default.
+
+```bash
+source ~/.keystone/secrets.env
+az provider register \
+  --namespace Microsoft.CostManagementExports \
+  --subscription "$KEYSTONE_PLATFORM_MANAGEMENT_SUBSCRIPTION_ID" \
+  --wait
+```
+
+Registration is per-sub and persists until the sub is cancelled — you
+only do this once. If you skip it, `terraform apply` of the export
+resource fails with **`400: RP Not Registered`** and a link to the
+RP-registration docs.
+
+Not codified as a Terraform resource because `azurerm_resource_provider_registration`
+has well-known import-and-drift quirks; the manual `az provider register`
+is reliable and one-shot.
 
 ## Run procedure
 
