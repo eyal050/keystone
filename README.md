@@ -30,3 +30,12 @@ source ~/.keystone/secrets.env
 
 - [`CLAUDE.md`](CLAUDE.md) — authoritative operating contract. Read first.
 - [`docs/secrets-inventory.md`](docs/secrets-inventory.md) — every sensitive value the project needs and how to retrieve it.
+
+## Operational helpers
+
+- [`scripts/cost-snapshot.sh`](scripts/cost-snapshot.sh) — month-to-date Azure cost across the MCA billing profile, grouped by subscription. Stop-gap until [`platform/20-management`](platform/) lands the proper cost exports + budgets.
+  ```bash
+  source ~/.keystone/secrets.env
+  ./scripts/cost-snapshot.sh
+  ```
+  Azure portal equivalent: [Cost Management → Cost analysis](https://portal.azure.com/#view/Microsoft_Azure_CostManagement/Menu/~/costanalysis) (scope to your MCA billing profile, view MTD).
