@@ -86,3 +86,14 @@ variable "state_storage_account_name" {
     error_message = "state_storage_account_name must be lowercase alphanumeric, 3-24 chars."
   }
 }
+
+variable "budget_alert_email" {
+  description = "Recipient email address for per-sub budget threshold alerts (F4). Sourced from KEYSTONE_BUDGET_ALERT_EMAIL — Section 6 marks email addresses as sensitive."
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = can(regex("^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$", var.budget_alert_email))
+    error_message = "budget_alert_email must be a valid email address."
+  }
+}

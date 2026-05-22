@@ -97,6 +97,21 @@ operates at MCA billing scope, not at this sub.
 - **Format**: GUID.
 - **CI scope**: `platform-subscriptions` environment only (consumed by `platform/05-subscriptions`).
 
+### `KEYSTONE_BUDGET_ALERT_EMAIL`
+
+Email address that receives Azure Cost Management budget threshold
+alerts from the per-subscription budgets in `platform/20-management`
+(F4).
+
+Section 6 explicitly lists email addresses as sensitive
+("anything that identifies Eyal beyond what's on his public CV/blog").
+
+- **Purpose**: `contact_emails` field on every per-sub budget's
+  notification blocks (10/20/50/80/100% of monthly threshold).
+- **Format**: any valid email address.
+- **CI scope**: `platform-management` environment (the only one that
+  applies `platform/20-management`).
+
 ### `KEYSTONE_STATE_STORAGE_ACCOUNT_NAME`
 
 Name of the Terraform state storage account created by `platform/00-bootstrap`
