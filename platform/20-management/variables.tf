@@ -76,3 +76,13 @@ variable "law_daily_quota_gb" {
   type        = number
   default     = 1
 }
+
+variable "state_storage_account_name" {
+  description = "Name of the state SA created by platform/00-bootstrap. Required for reading platform/10-management-groups outputs via terraform_remote_state. Sourced from KEYSTONE_STATE_STORAGE_ACCOUNT_NAME."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[a-z0-9]{3,24}$", var.state_storage_account_name))
+    error_message = "state_storage_account_name must be lowercase alphanumeric, 3-24 chars."
+  }
+}
