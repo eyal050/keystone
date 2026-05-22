@@ -24,10 +24,15 @@ locals {
     allowed_locations = "/providers/Microsoft.Authorization/policyDefinitions/e56962a6-4747-49cd-b67b-bf8b01975c4c"
 
     # "Secure transfer to storage accounts should be enabled" — flags
-    # storage accounts that do not enforce HTTPS. Built-in default
-    # effect is Audit; assignment below leaves it Audit deliberately
-    # to demonstrate the graduated-rollout pattern.
+    # storage accounts that do not enforce HTTPS. Originally assigned
+    # as Audit (graduated rollout); promoted to Deny on 2026-05-22
+    # after the compliance dashboard showed zero historical violators.
     secure_transfer_storage = "/providers/Microsoft.Authorization/policyDefinitions/404c3081-a854-4457-ae30-26a93ef643f9"
+
+    # "Storage accounts should disable public network access" — denies
+    # create/update of SAs that have public network access enabled.
+    # Effect parameter accepts Audit / Deny / Disabled.
+    storage_public_network_access = "/providers/Microsoft.Authorization/policyDefinitions/b2982f36-99f2-4db5-8eff-283140c09693"
   }
 }
 
@@ -85,31 +90,60 @@ resource "azurerm_management_group_policy_assignment" "allowed_locations" {
 }
 
 # ---------------------------------------------------------------------------
-# Assignment 3: Secure transfer (HTTPS) on storage — Audit-only
+# Assignment 3: Secure transfer (HTTPS) on storage — Deny (was Audit)
 #
-# Built-in policy 404c3081 has only Audit / Deny effects, and its
-# parameter is named "effect". This assignment is deliberately Audit
-# rather than Deny to demonstrate the graduated-rollout pattern:
-#   1. Roll out as Audit at the broadest scope (keystone).
-#   2. Watch the compliance dashboard for ~one cycle (24h) to find
-#      any historical SAs that violate.
-#   3. Flip to Deny by editing the `effect` value here and re-applying.
+# Rolled out 2026-05-21 as Audit at keystone scope. After the
+# compliance dashboard's first refresh cycle, no historical SA was
+# flagged non-compliant (the only SA at the time was the bootstrap
+# state SA, which is HTTPS-only by code). Promoted to Deny on
+# 2026-05-22 — this is the graduated-rollout transition the
+# original E3 commit message described.
 #
-# A new E4 assignment will be added in the next chunk to denyHTTP on
-# new SAs at landing-zones-corp scope — different threat model,
-# different effect.
+# The Azure resource name keeps its "secure-transfer-audit" suffix
+# for state stability — renaming would force destroy+recreate of
+# the assignment and lose its compliance history. The display_name
+# and description reflect the current effect.
 # ---------------------------------------------------------------------------
 
 resource "azurerm_management_group_policy_assignment" "secure_transfer_storage_audit" {
   name                 = "secure-transfer-audit"
-  display_name         = "Storage accounts: secure transfer required (Audit)"
-  description          = "Audit-only roll-out of the HTTPS-only requirement for storage accounts. Per CLAUDE.md §2, HTTPS on storage is a required platform-baseline policy; the Audit→Deny transition is itself the lesson."
+  display_name         = "Storage accounts: secure transfer required (Deny)"
+  description          = "Enforces HTTPS-only on storage accounts at keystone scope. Originally rolled out 2026-05-21 as Audit; promoted to Deny on 2026-05-22 after zero historical violators. Resource name retains the -audit suffix for state stability."
   management_group_id  = azurerm_management_group.top.id
   policy_definition_id = local.builtin_policy_ids.secure_transfer_storage
 
   parameters = jsonencode({
     effect = {
-      value = "Audit"
+      value = "Deny"
+    }
+  })
+}
+
+# ---------------------------------------------------------------------------
+# Assignment 4: Deny public network access on storage — landing zones only
+#
+# Workload-scope assignment, not platform-scope. The platform state SA
+# (rg-tfstate-plat-weu-001/sttfstateplat…) currently has
+# public_network_access_enabled = true (with a TODO to tighten once
+# 30-connectivity provides a private endpoint). Applying this policy
+# at keystone scope would block its own backing storage.
+#
+# So scope to keystone-landing-zones-corp instead: workload SAs (the
+# ReelHouse video blob store, when it lands) must be private-endpoint-
+# only from day one. Platform SAs get their own assignment when
+# 30-connectivity is in place.
+# ---------------------------------------------------------------------------
+
+resource "azurerm_management_group_policy_assignment" "storage_public_network_deny" {
+  name                 = "deny-storage-public"
+  display_name         = "Storage accounts: public network access denied (workloads)"
+  description          = "Denies create/update of storage accounts with public network access enabled, scoped to keystone-landing-zones-corp. Platform SAs are not in scope — the state SA is still public-network-accessible pending 30-connectivity (see TODO in platform/00-bootstrap/main.tf)."
+  management_group_id  = azurerm_management_group.landing_zones_corp.id
+  policy_definition_id = local.builtin_policy_ids.storage_public_network_access
+
+  parameters = jsonencode({
+    effect = {
+      value = "Deny"
     }
   })
 }
