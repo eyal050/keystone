@@ -1,0 +1,21 @@
+# Local non-secret tfvars for platform/20-management.
+#
+# All sensitive values come from environment variables. To use:
+#   source ~/.keystone/secrets.env
+#   export TF_VAR_tenant_id="$KEYSTONE_TENANT_ID"
+#   export TF_VAR_mgmt_subscription_id="$KEYSTONE_PLATFORM_MANAGEMENT_SUBSCRIPTION_ID"
+#
+#   terraform init \
+#     -backend-config="subscription_id=$KEYSTONE_PLATFORM_MANAGEMENT_SUBSCRIPTION_ID" \
+#     -backend-config="tenant_id=$KEYSTONE_TENANT_ID" \
+#     -backend-config="resource_group_name=rg-tfstate-plat-weu-001" \
+#     -backend-config="storage_account_name=$KEYSTONE_STATE_STORAGE_ACCOUNT_NAME" \
+#     -backend-config="container_name=tfstate" \
+#     -backend-config="key=platform-20-management.tfstate"
+#
+#   terraform plan
+#   terraform apply
+#
+# Optional overrides (uncomment to override defaults):
+# law_retention_in_days = 90
+# law_daily_quota_gb    = 1
