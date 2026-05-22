@@ -1,0 +1,23 @@
+# Local non-secret tfvars for platform/10-management-groups.
+#
+# Sensitive values come from environment variables. To use:
+#   cp terraform.tfvars.example terraform.tfvars   # gitignored
+#   source ~/.keystone/secrets.env
+#   export TF_VAR_tenant_id="$KEYSTONE_TENANT_ID"
+#   export TF_VAR_mgmt_subscription_id="$KEYSTONE_PLATFORM_MANAGEMENT_SUBSCRIPTION_ID"
+#   export TF_VAR_state_storage_account_name="$KEYSTONE_STATE_STORAGE_ACCOUNT_NAME"
+#
+#   terraform init \
+#     -backend-config="subscription_id=$KEYSTONE_PLATFORM_MANAGEMENT_SUBSCRIPTION_ID" \
+#     -backend-config="tenant_id=$KEYSTONE_TENANT_ID" \
+#     -backend-config="resource_group_name=rg-tfstate-plat-weu-001" \
+#     -backend-config="storage_account_name=$KEYSTONE_STATE_STORAGE_ACCOUNT_NAME" \
+#     -backend-config="container_name=tfstate" \
+#     -backend-config="key=platform-10-management-groups.tfstate"
+#
+#   terraform plan
+#   terraform apply
+#
+# This file has no overridable defaults to set; it exists so the
+# .gitignore allowlist pattern (*.tfvars.example) covers this layer
+# the same way it covers the others.

@@ -97,6 +97,27 @@ operates at MCA billing scope, not at this sub.
 - **Format**: GUID.
 - **CI scope**: `platform-subscriptions` environment only (consumed by `platform/05-subscriptions`).
 
+### `KEYSTONE_STATE_STORAGE_ACCOUNT_NAME`
+
+Name of the Terraform state storage account created by `platform/00-bootstrap`
+in `keystone-platform-management`.
+
+Not strictly a credential — SA names alone grant no access — but kept out of
+the repo for the same reason tenant IDs are: it identifies a specific
+Azure tenancy and would link the public repo back to its operator.
+
+- **Purpose**: every layer beyond `00-bootstrap` references this as the
+  `storage_account_name` in `backend "azurerm"` or in `data "terraform_remote_state"` blocks.
+- **Retrieve** (after `platform/00-bootstrap` has been applied):
+  ```bash
+  az storage account list \
+    -g rg-tfstate-plat-weu-001 \
+    --subscription "$KEYSTONE_PLATFORM_MANAGEMENT_SUBSCRIPTION_ID" \
+    --query "[0].name" -o tsv
+  ```
+- **Format**: lowercase alphanumeric, 24 chars max (e.g. `sttfstateplatweu<6-hex>`).
+- **CI scope**: every GitHub Environment that runs `terraform`.
+
 ### `KEYSTONE_PLATFORM_MANAGEMENT_SUBSCRIPTION_ID`
 
 Subscription ID (GUID) of the `keystone-platform-management` subscription

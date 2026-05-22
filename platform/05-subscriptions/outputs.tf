@@ -11,15 +11,28 @@ output "mgmt_subscription_id" {
   sensitive   = true
 }
 
+# Non-sensitive metadata about each vended sub. Keys are aliases
+# (e.g. "platform-management") which are not sensitive — they are
+# derived from the public subscription names in CLAUDE.md §3.
+# This output is consumed by downstream layers' for_each — sensitive
+# maps cannot be iterated.
 output "subscriptions" {
-  description = "Map of sub alias → { id, name, workload, phase }. Only includes subs actually vended in the current phase."
+  description = "Map of sub alias → { name, workload, phase }. Only includes subs actually vended in the current phase. Non-sensitive — for ID lookups use subscription_ids."
   value = {
     for k, v in azurerm_subscription.this : k => {
-      id       = v.subscription_id
       name     = v.subscription_name
       workload = v.workload
       phase    = contains(keys(local.phase_1_subs), k) ? "phase-1" : "phase-2"
     }
+  }
+}
+
+# Sensitive companion to `subscriptions` — separated so downstream
+# layers can for_each over the metadata map and look up IDs here.
+output "subscription_ids" {
+  description = "Map of sub alias → subscription GUID. Sensitive (per Section 6, subscription IDs are tenant-identifying)."
+  value = {
+    for k, v in azurerm_subscription.this : k => v.subscription_id
   }
   sensitive = true
 }
