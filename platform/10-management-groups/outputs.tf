@@ -21,3 +21,10 @@ output "associations" {
     for k, v in azurerm_management_group_subscription_association.this : k => v.management_group_id
   }
 }
+
+output "policy_definition_ids" {
+  description = "Map of custom policy definition short name → definition ID. Consumed by E3 (policy assignments) and by any other layer that needs to reference these definitions."
+  value = {
+    required_tag_enum = azurerm_policy_definition.required_tag_enum.id
+  }
+}
