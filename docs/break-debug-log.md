@@ -93,3 +93,59 @@ loud-failing validation, not just type-checking. If the value can be
 "empty string", the provider's fallback chain might silently make
 "empty string" mean "any other context", which is the worst-of-both
 between "fail" and "do what I expect".
+
+### 2026-05-24 — Sub vended at Tenant Root instead of its target MG
+
+**Scenario** (unintentional — caught by Eyal eyeballing the portal):
+after the targeted Phase-2 apply that vended
+`keystone-platform-connectivity`, the sub appeared in the Azure portal
+under **Tenant Root**, not under the `keystone-platform-connectivity`
+management group it was supposed to live in.
+
+**Symptom (what Eyal saw first)**: portal MG hierarchy view showed
+`keystone-platform-connectivity` sub directly at Tenant Root scope.
+
+**Hypothesis path**:
+
+1. The `azurerm_subscription` resource forgot to set the target MG
+   somehow. **Falsified**: that resource doesn't manage MG placement
+   in the first place — placement is owned by
+   `azurerm_management_group_subscription_association` in
+   `platform/10-management-groups`.
+2. Drift: someone moved the sub via the portal. **Falsified**: nobody
+   touched the portal — the sub had never been placed at all.
+3. `platform/10-management-groups` hadn't been re-applied since the
+   new sub was vended. **Confirmed**: 10's `for_each` over
+   `data.terraform_remote_state.subscriptions.outputs.subscriptions`
+   only iterated the subs that existed in 05's state **at the time 10
+   was last applied**. When 05 added connectivity, 10's state still
+   had the Phase-1 association set; the new sub had no association
+   resource managing it, so it sat unparented at Tenant Root.
+
+**Root cause**: layer-dependency oversight. 10-management-groups
+consumes 05-subscriptions' outputs at apply time, not at plan time of
+downstream layers. Vending a sub in 05 does *not* automatically
+re-run 10. The two layers have an implicit ordering dependency that
+must be triggered manually after a sub vend.
+
+**Fix**: re-applied `platform/10-management-groups`. Plan proposed
+exactly 1 new resource:
+`azurerm_management_group_subscription_association.this["platform-connectivity"]`.
+Apply added it. `az account management-group show --name
+keystone-platform-connectivity --expand` now lists the sub under
+the MG.
+
+**Signal Eyal should have looked at first**: after any Phase-2-style
+sub vend, the next command should be
+`cd ../10-management-groups && terraform plan` — if it shows
+"1 to add", that's the dance reconciling 05 → 10.
+
+**Generalisable lesson**: when a downstream layer reads upstream
+state via `terraform_remote_state`, **vending in the upstream layer
+is not the full story**. The downstream layer also needs an apply to
+materialise the consequences. A future polish would be a Makefile
+target like `make vend-sub ALIAS=platform-identity` that runs
+`05-subscriptions` apply then `10-management-groups` apply in
+sequence, codifying the dependency. CLAUDE.md §3 names exactly this
+class as a P1 — and that prediction has now been validated against
+reality.
