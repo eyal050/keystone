@@ -1,0 +1,126 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# Keystone — Overview\n\n_Read-only operational view of the Keystone Enterprise-Scale Landing Zone lab._\n\nQueries source: **Azure Resource Graph** (cross-subscription, tenant-scoped to whatever the viewing identity has Reader on). Updates near-real-time (~minutes).\n\nFor live cost-by-resource / cost-by-MG analysis, use the **Cost Analysis** deep-links in the last section — Cost Management has its own UI and beats anything we could build here.\n\n---"
+      },
+      "name": "header"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Subscription inventory\n\nEvery subscription that lives anywhere under the `keystone` management group, including descendants. New Phase-2 subs (identity, workload-dev, workload-prod) appear here automatically as they vend."
+      },
+      "name": "subs_header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "resourcecontainers\n| where type == 'microsoft.resources/subscriptions'\n| where properties.managementGroupAncestorsChain has 'keystone'\n| extend MGPath = strcat_array(extract_all(@'\"name\":\"([^\"]+)\"', tostring(properties.managementGroupAncestorsChain)), ' > ')\n| project Subscription = name, State = tostring(properties.state), ManagementGroupPath = MGPath\n| order by Subscription asc",
+        "size": 0,
+        "title": "Subscriptions under keystone MG",
+        "queryType": 1,
+        "resourceType": "microsoft.resourcegraph/resources",
+        "visualization": "table"
+      },
+      "name": "subs_table"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Resource inventory\n\nResources currently deployed across Keystone subs."
+      },
+      "name": "resources_header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "resources\n| join kind=inner (\n    resourcecontainers\n    | where type == 'microsoft.resources/subscriptions'\n    | where properties.managementGroupAncestorsChain has 'keystone'\n    | project subscriptionId, SubName = name\n  ) on subscriptionId\n| summarize Resources = count() by Subscription = SubName\n| order by Resources desc",
+        "size": 0,
+        "title": "Resource count by subscription",
+        "queryType": 1,
+        "resourceType": "microsoft.resourcegraph/resources",
+        "visualization": "barchart"
+      },
+      "name": "count_by_sub"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "resources\n| join kind=inner (\n    resourcecontainers\n    | where type == 'microsoft.resources/subscriptions'\n    | where properties.managementGroupAncestorsChain has 'keystone'\n    | project subscriptionId\n  ) on subscriptionId\n| summarize Count = count() by ResourceType = type\n| order by Count desc",
+        "size": 0,
+        "title": "Resource count by type",
+        "queryType": 1,
+        "resourceType": "microsoft.resourcegraph/resources",
+        "visualization": "barchart"
+      },
+      "name": "count_by_type"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "resources\n| join kind=inner (\n    resourcecontainers\n    | where type == 'microsoft.resources/subscriptions'\n    | where properties.managementGroupAncestorsChain has 'keystone'\n    | project subscriptionId, SubName = name\n  ) on subscriptionId\n| project Name = name, Type = type, Location = location, ResourceGroup = resourceGroup, Subscription = SubName\n| order by Subscription asc, ResourceGroup asc, Name asc",
+        "size": 0,
+        "title": "All resources under keystone MG",
+        "queryType": 1,
+        "resourceType": "microsoft.resourcegraph/resources",
+        "visualization": "table"
+      },
+      "name": "all_resources"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Policy compliance\n\nResources evaluated by the policies assigned at `keystone` MG scope. Non-compliant entries are the ones the platform team should be checking on."
+      },
+      "name": "policy_header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "policyresources\n| where type =~ 'microsoft.policyinsights/policystates'\n| join kind=inner (\n    resourcecontainers\n    | where type == 'microsoft.resources/subscriptions'\n    | where properties.managementGroupAncestorsChain has 'keystone'\n    | project subscriptionId\n  ) on subscriptionId\n| summarize Resources = dcount(tostring(properties.resourceId)) by ComplianceState = tostring(properties.complianceState)\n| order by Resources desc",
+        "size": 0,
+        "title": "Policy compliance state",
+        "queryType": 1,
+        "resourceType": "microsoft.resourcegraph/resources",
+        "visualization": "piechart"
+      },
+      "name": "policy_compliance_pie"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Diagnostic-settings coverage\n\nWhich storage accounts under Keystone have a diagnostic setting forwarding to the platform LAW? The DfN policy at `keystone` MG scope should drive every SA to compliant — if any show `No`, the policy's managed identity or its role assignment is broken (CLAUDE.md §8 break/debug scenario)."
+      },
+      "name": "diag_header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "resources\n| where type =~ 'microsoft.storage/storageaccounts'\n| join kind=inner (\n    resourcecontainers\n    | where type == 'microsoft.resources/subscriptions'\n    | where properties.managementGroupAncestorsChain has 'keystone'\n    | project subscriptionId, SubName = name\n  ) on subscriptionId\n| project SAId = tolower(id), SAName = name, Subscription = SubName\n| join kind=leftouter (\n    resources\n    | where type =~ 'microsoft.insights/diagnosticsettings'\n    | extend ParentSAId = tolower(tostring(split(id, '/providers/microsoft.insights')[0]))\n    | project DiagSettingId = id, ParentSAId\n  ) on $left.SAId == $right.ParentSAId\n| project StorageAccount = SAName, Subscription, HasDiagnosticSetting = iff(isnotempty(DiagSettingId), 'Yes', 'No')\n| order by HasDiagnosticSetting asc, Subscription asc, StorageAccount asc",
+        "size": 0,
+        "title": "Diagnostic-settings coverage on storage accounts",
+        "queryType": 1,
+        "resourceType": "microsoft.resourcegraph/resources",
+        "visualization": "table"
+      },
+      "name": "diag_coverage"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Cost views\n\nResource Graph KQL doesn't expose Cost Management data — those views live in the Cost Management UI. The links below open Cost Analysis pre-scoped to `keystone`:\n\n- **[Cost by subscription (MTD)](https://portal.azure.com/#view/Microsoft_Azure_CostManagement/Menu/~/costanalysis/scope/%2Fproviders%2FMicrosoft.Management%2FmanagementGroups%2Fkeystone)** — group by SubscriptionName.\n- **[Cost by resource (high to low)](https://portal.azure.com/#view/Microsoft_Azure_CostManagement/Menu/~/costanalysis/scope/%2Fproviders%2FMicrosoft.Management%2FmanagementGroups%2Fkeystone)** — same scope, then switch the group-by dropdown to *ResourceId* and sort by Cost desc.\n- **[Cost by service](https://portal.azure.com/#view/Microsoft_Azure_CostManagement/Menu/~/costanalysis/scope/%2Fproviders%2FMicrosoft.Management%2FmanagementGroups%2Fkeystone)** — same scope, group by ServiceName.\n\nFor CLI cost queries, see `scripts/cost-snapshot.sh` (uses the Cost Management REST API directly).\n\n_A v2 of this workbook will embed cost-by-sub and cost-by-resource as native ARM-query cells. The ARM cell JSON is finicky and worth a separate iteration._"
+      },
+      "name": "cost_links"
+    }
+  ],
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}
