@@ -133,6 +133,23 @@ Azure tenancy and would link the public repo back to its operator.
 - **Format**: lowercase alphanumeric, 24 chars max (e.g. `sttfstateplatweu<6-hex>`).
 - **CI scope**: every GitHub Environment that runs `terraform`.
 
+### `KEYSTONE_PLATFORM_CONNECTIVITY_SUBSCRIPTION_ID`
+
+Subscription ID (GUID) of `keystone-platform-connectivity`, the hub
+sub hosting the hub VNet, Azure Firewall, Private DNS zones.
+
+Empty until Phase 2 of [ADR-0009](decisions/0009-subscription-staging-management-first.md)
+completes (blocked on the MCA quota ticket).
+
+- **Purpose**: provider auth context for `platform/30-connectivity` apply.
+- **Retrieve** (after Phase 2 apply):
+  ```bash
+  cd platform/05-subscriptions
+  terraform output -raw subscription_ids | jq -r '."platform-connectivity"'
+  ```
+- **Format**: GUID.
+- **CI scope**: `platform-connectivity` environment.
+
 ### `KEYSTONE_PLATFORM_MANAGEMENT_SUBSCRIPTION_ID`
 
 Subscription ID (GUID) of the `keystone-platform-management` subscription

@@ -1,0 +1,28 @@
+# Local non-secret tfvars for platform/30-connectivity.
+#
+# Apply is BLOCKED until Phase 2 of platform/05-subscriptions vends
+# keystone-platform-connectivity. Until then:
+#   - the code is in the repo for review only.
+#   - terraform plan against this layer fails at the
+#     data.azurerm_subscription lookup with "sub not found".
+#
+# Once the sub is vended and KEYSTONE_PLATFORM_CONNECTIVITY_SUBSCRIPTION_ID
+# is populated in ~/.keystone/secrets.env, the run procedure is:
+#
+#   source ~/.keystone/secrets.env
+#   export TF_VAR_tenant_id="$KEYSTONE_TENANT_ID"
+#   export TF_VAR_connectivity_subscription_id="$KEYSTONE_PLATFORM_CONNECTIVITY_SUBSCRIPTION_ID"
+#
+#   terraform init \
+#     -backend-config="subscription_id=$KEYSTONE_PLATFORM_MANAGEMENT_SUBSCRIPTION_ID" \
+#     -backend-config="tenant_id=$KEYSTONE_TENANT_ID" \
+#     -backend-config="resource_group_name=rg-tfstate-plat-weu-001" \
+#     -backend-config="storage_account_name=$KEYSTONE_STATE_STORAGE_ACCOUNT_NAME" \
+#     -backend-config="container_name=tfstate" \
+#     -backend-config="key=platform-30-connectivity.tfstate"
+#
+#   terraform plan
+#   terraform apply
+#
+# Optional overrides (uncomment to override defaults):
+# hub_address_space = ["10.10.0.0/16"]
