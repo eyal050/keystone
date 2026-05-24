@@ -60,7 +60,7 @@ apply-%:  ## (see "Pattern rules" below)
 
 # -- Cross-layer workflows ---------------------------------------------------
 
-vend-sub:  ## Vend a Phase-2 sub and reconcile MG associations. Usage: make vend-sub ALIAS=platform-identity
+vend-sub:  ## Vend a Phase-2 sub and reconcile every downstream layer that for_each'es over subscriptions. Usage: make vend-sub ALIAS=platform-identity
 	test -n "$(ALIAS)" || { echo "ERROR: set ALIAS=<sub-alias> (e.g. platform-identity, reelhouse-dev)"; exit 2; }
 	echo "─── Vending $(ALIAS) in 05-subscriptions ───"
 	./scripts/_tf-cmd.sh 05-subscriptions apply -auto-approve \
@@ -70,9 +70,18 @@ vend-sub:  ## Vend a Phase-2 sub and reconcile MG associations. Usage: make vend
 	echo "─── Reconciling MG associations in 10-management-groups ───"
 	./scripts/_tf-cmd.sh 10-management-groups apply -auto-approve
 	echo
+	echo "─── Reconciling budgets + cost exports in 20-management ───"
+	echo "(Cost-export may fail on a freshly-vended sub — Microsoft takes up to 24h"
+	echo " to enable cost-data API for new MCA subs. Retry tomorrow if so.)"
+	./scripts/_tf-cmd.sh 20-management apply -auto-approve || \
+		{ echo "WARN: 20-management apply failed (expected if sub is <24h old). Retry tomorrow with: make apply-20-management"; }
+	echo
 	echo "Done. Capture the new sub ID into ~/.keystone/secrets.env as"
 	echo "KEYSTONE_PLATFORM_$$(echo "$(ALIAS)" | tr 'a-z-' 'A-Z_')_SUBSCRIPTION_ID"
 	echo "(or KEYSTONE_REELHOUSE_<ENV>_SUBSCRIPTION_ID for workload subs)."
+	echo
+	echo "When 40-identity lands, add it to this target's chain (it will"
+	echo "have the same for_each-over-subs pattern)."
 
 # -- Destroy targets ---------------------------------------------------------
 #

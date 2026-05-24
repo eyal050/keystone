@@ -149,3 +149,63 @@ target like `make vend-sub ALIAS=platform-identity` that runs
 sequence, codifying the dependency. CLAUDE.md §3 names exactly this
 class as a P1 — and that prediction has now been validated against
 reality.
+
+### 2026-05-24 — Same drift pattern in 20-management
+
+**Scenario** (caught by `make plan-20-management` immediately after
+the Makefile landed): 20-management showed `2 to add` after the
+connectivity sub vended.
+
+**Symptom**: budget + cost-export resources for `platform-connectivity`
+missing from state.
+
+**Hypothesis path**:
+
+1. Different bug class than the 10-management-groups Tenant-Root
+   miss. **Falsified**: same class — `for_each` over
+   `terraform_remote_state.subscriptions.outputs.subscriptions`.
+2. The 20-management layer's `cost-exports.tf` and `budgets.tf` both
+   `for_each` over the same upstream output. New subs in 05 trigger
+   the same "needs a downstream apply" dance. **Confirmed.**
+
+**Root cause**: identical to the 10-management-groups case. Any
+layer with `for_each` over upstream remote state has the same
+implicit cross-layer-apply dependency. Today's bug just affects a
+*second* layer.
+
+**Fix**:
+- `make apply-20-management` (or the helper directly with
+  `-auto-approve` for non-interactive). The budget for connectivity
+  applied immediately.
+- Cost-export for connectivity **failed with a transient Microsoft
+  API error**: "Cost management data is not supported for
+  subscription(s) … in the provided api-version. Please use
+  api-version 2019-10-01 or later." The error message blames the
+  API version but the real cause is freshly-vended MCA subs taking
+  up to 24h before cost-data services accept exports for them.
+  Retry tomorrow.
+- Microsoft.CostManagementExports RP registered on the connectivity
+  sub (same one-time prereq as platform-management) — necessary but
+  not sufficient.
+
+**Updated remediation**: extended the `make vend-sub` target to
+chain **three** applies, not two: 05 → 10 → 20. That covers every
+layer currently using `for_each` over the subscriptions remote
+state output. Future layers with the same pattern (40-identity is
+the next candidate) need to be added here when they land.
+
+**Signal Eyal should have looked at first** (carried forward from
+the 10-management-groups entry): after any sub vend, `make
+plan-LAYER` for every layer that `for_each`-es over
+subscriptions. The Makefile inventory now grows by ~1 layer per
+new platform layer that does cross-layer state reads — keep the
+list in `vend-sub` aligned.
+
+**Generalisable lesson (sharpened)**: the bug class isn't "10
+needs re-applying after 05 vends" — it's "**every layer with
+`for_each` over upstream remote state needs re-applying after the
+upstream changes.**" There's no magic in Terraform that propagates
+this; the workflow tooling (Makefile / Terragrunt / CI) is what
+catches it. Worth pre-rehearsing for an interview: a question about
+"multi-layer terraform pitfalls" answers itself with this exact
+example.
