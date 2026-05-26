@@ -1,0 +1,14 @@
+# Example tfvars for platform/40-identity.
+#
+# All values for THIS layer come from environment variables sourced
+# by scripts/_tf-cmd.sh (which reads ~/.keystone/secrets.env). No
+# .tfvars file is needed for normal use — running `make plan-40-identity`
+# or `make apply-40-identity` picks up everything via TF_VAR_*.
+#
+# This file exists as documentation of what variables the layer needs.
+# See `secrets.example.env` at the repo root for the env-var names
+# and how to obtain real values.
+
+# tenant_id                  = "<KEYSTONE_TENANT_ID>"
+# mgmt_subscription_id       = "<KEYSTONE_PLATFORM_MANAGEMENT_SUBSCRIPTION_ID>"
+# state_storage_account_name = "<KEYSTONE_STATE_STORAGE_ACCOUNT_NAME>"

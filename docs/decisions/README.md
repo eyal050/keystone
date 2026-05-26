@@ -28,3 +28,4 @@ ADRs follow a trimmed [MADR](https://adr.github.io/madr/) shape:
 | [0008](0008-tag-taxonomy.md) | Required-tag taxonomy with enumerated values | Accepted |
 | [0009](0009-subscription-staging-management-first.md) | Stage subscription vending: Management first, others post-quota | Accepted |
 | [0010](0010-firewall-on-demand-not-scheduled.md) | Firewall is on-demand (default off), not scheduled | Accepted |
+| [0011](0011-identity-collapsed-into-management.md) | Identity layer collapses into Management subscription (MCA quota) | Accepted |

@@ -80,8 +80,10 @@ vend-sub:  ## Vend a Phase-2 sub and reconcile every downstream layer that for_e
 	echo "KEYSTONE_PLATFORM_$$(echo "$(ALIAS)" | tr 'a-z-' 'A-Z_')_SUBSCRIPTION_ID"
 	echo "(or KEYSTONE_REELHOUSE_<ENV>_SUBSCRIPTION_ID for workload subs)."
 	echo
-	echo "When 40-identity lands, add it to this target's chain (it will"
-	echo "have the same for_each-over-subs pattern)."
+	echo "Note: 40-identity is NOT in this chain — it has no for_each over"
+	echo "subscriptions (the spoke-network-operator role is MG-scoped, not"
+	echo "per-sub). If future work adds per-sub MIs or per-sub role"
+	echo "assignments to 40-identity, add it here."
 
 # -- Firewall on-demand lifecycle (ADR-0010) ---------------------------------
 #
