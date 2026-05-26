@@ -209,3 +209,82 @@ this; the workflow tooling (Makefile / Terragrunt / CI) is what
 catches it. Worth pre-rehearsing for an interview: a question about
 "multi-layer terraform pitfalls" answers itself with this exact
 example.
+
+### 2026-05-25 — Time-sensitive literal in cost-export rots after first vend
+
+**Scenario** (caught on the cost-export retry from 2026-05-24): the
+`platform-connectivity` cost-export apply failed again, but with a
+*different* error than yesterday. Yesterday's API-version error was
+gone (MCA back-end had warmed up overnight as predicted), revealing
+a second bug hiding underneath.
+
+**Symptom**:
+```
+Error: creating Scoped Export: 400 Bad Request:
+Request properties validation failed:
+Invalid schedule recurrencePeriod; 'from' value cannot be in the past.
+```
+
+**Hypothesis path**:
+
+1. Same as yesterday — MCA back-end still cold for the new sub.
+   **Falsified**: yesterday's error string was specific ("Cost
+   management data is not supported … api-version"); today's is
+   different ("recurrence period 'from' in the past"). Two distinct
+   bugs, today's was hidden behind yesterday's.
+2. Microsoft tightened API validation between yesterday and today.
+   **Implausible but checked**: the literal start date
+   `2026-05-22T00:00:00Z` in `cost-exports.tf:42` is **3 days in
+   the past** today. The earlier `platform-management` export
+   succeeded on 2026-05-22 (when the literal was current).
+   **Confirmed**: bug is in the hardcoded literal, not in the API.
+
+**Root cause**: the resource's `recurrence_period_start_date` is a
+literal date string. The Microsoft cost-export API requires the
+start date to be **current or future** at the moment of CREATE.
+That makes the literal time-bombed: any new sub vended after the
+literal's date hits the same wall. Existing exports are unaffected
+because the API only enforces the rule at create time, not on
+ongoing reconciliation.
+
+This is the same shape of bug as TLS certs expiring in test
+fixtures: "works the day you wrote it, breaks on a future calendar
+boundary you didn't plan for." Easy to write, easy to ship, hard
+to spot in review.
+
+**Fix**:
+- Replace the literal with
+  `formatdate("YYYY-MM-DD'T'00:00:00'Z'", timeadd(timestamp(), "24h"))`
+  → always tomorrow midnight UTC, unambiguously in the future no
+  matter what time apply runs.
+- Pair with `lifecycle { ignore_changes = [recurrence_period_start_date] }`.
+  `timestamp()` is impure and otherwise produces a fresh value every
+  plan, which would create permadrift on existing exports. The
+  start date is only meaningful at create time, so ignoring it
+  post-create is correct semantically as well as practically.
+- `make plan-20-management` after the change showed `1 to add,
+  0 to change, 0 to destroy` — confirming the existing
+  `platform-management` export is immune to the impure expression.
+- Apply succeeded immediately.
+
+**Signal Eyal should have looked at first**: not the API error
+message — it lied about the trigger ("api-version" was a red
+herring yesterday; "in the past" was the real signal hidden
+underneath). The signal that would have caught this at code-review
+time: **any literal date string in a Terraform file is suspicious**.
+A date that's correct today is incorrect on every other day. If a
+field accepts only current-or-future values, the literal pattern
+is doomed; if it accepts any value, the literal is just stale
+docs at best.
+
+**Generalisable lesson**: "this worked yesterday" is not the same
+as "this works." Time-sensitive literals fail on a delay that's
+larger than typical PR review cycles, so reviewers never see the
+failure mode. The defensive pattern is **`timestamp()` +
+`ignore_changes`** for any field where the API requires
+not-in-the-past values. Other candidates in this repo to audit
+for the same shape: certificate `not_before` / `not_after`,
+RBAC `eligible_assignment` schedules, scheduled-action start
+times, and anything in `00-bootstrap` or `05-subscriptions` that
+hardcodes a date. *None* of these have landed yet, but the audit
+hook is worth keeping when they do.

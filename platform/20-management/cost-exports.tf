@@ -38,8 +38,18 @@ resource "azurerm_subscription_cost_management_export" "monthly" {
   name            = "keystone-${each.key}-mtd"
   subscription_id = "/subscriptions/${data.terraform_remote_state.subscriptions.outputs.subscription_ids[each.key]}"
 
-  recurrence_type              = "Daily"
-  recurrence_period_start_date = "2026-05-22T00:00:00Z"
+  recurrence_type = "Daily"
+
+  # Microsoft's cost-export API rejects `recurrence_period_start_date` if
+  # it's in the past at the moment of CREATE. A hardcoded literal therefore
+  # rots: it works on the day it's written, then breaks the next sub vend.
+  # See docs/break-debug-log.md 2026-05-25.
+  #
+  # Use "tomorrow at midnight UTC" so the value is unambiguously in the
+  # future regardless of what time of day apply runs. Paired with
+  # `ignore_changes` below so `timestamp()`'s impurity doesn't cause
+  # permadrift on existing exports.
+  recurrence_period_start_date = formatdate("YYYY-MM-DD'T'00:00:00'Z'", timeadd(timestamp(), "24h"))
   recurrence_period_end_date   = "2031-05-22T00:00:00Z" # Azure caps at 5 years
   active                       = true
 
@@ -51,5 +61,12 @@ resource "azurerm_subscription_cost_management_export" "monthly" {
   export_data_options {
     type       = "ActualCost"
     time_frame = "MonthToDate"
+  }
+
+  lifecycle {
+    # `recurrence_period_start_date` uses timestamp() — re-evaluated every
+    # plan. Without this, every plan would show a diff for every existing
+    # export. The start date is only meaningful at create time anyway.
+    ignore_changes = [recurrence_period_start_date]
   }
 }
