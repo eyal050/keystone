@@ -8,15 +8,20 @@
 # (chunk E4 / spoke creation). Until then, only the hub itself can
 # resolve via these zones.
 #
-# This file covers the PLATFORM-side zones — services that already
-# exist or will exist as part of the platform layers (storage SAs,
-# Log Analytics ingestion endpoints). Workload-side zones (Key Vault,
-# Postgres, Container Apps, APIM) land in a later chunk alongside the
-# workload deployment.
+# The file splits zones into two sets:
 #
-# Cost: ~€0.50/zone/month, no free tier. 4 zones = ~€2/month constant
-# flat-monthly. First lab resource where realised cost moves above
-# the noise floor.
+#   - PLATFORM zones (E1) — services that exist or will exist as part
+#     of the platform layers (storage, Log Analytics).
+#   - WORKLOAD zones (E3) — services consumed by ReelHouse (Key Vault,
+#     Postgres, Container Apps, APIM).
+#
+# Both sets are created and linked identically. The split is for
+# documentation / `terraform state list` legibility, not for any
+# behavioural difference.
+#
+# Cost: ~€0.50/zone/month, no free tier. 4 + 4 = 8 zones = ~€4/month
+# flat-monthly. Query cost (first 1M/month/zone free) is deep in the
+# free tier at lab volumes.
 
 locals {
   platform_private_dns_zones = toset([
@@ -35,6 +40,25 @@ locals {
     # current Azure — separate from the ods endpoint.
     "privatelink.oms.opinsights.azure.com",
   ])
+
+  workload_private_dns_zones = toset([
+    # Key Vault — workload secrets (SAS signing keys, DB connection
+    # strings per CLAUDE.md §2 workload scope).
+    "privatelink.vaultcore.azure.net",
+
+    # PostgreSQL Flexible Server — workload metadata (users, videos,
+    # share links).
+    "privatelink.postgres.database.azure.com",
+
+    # Azure Container Apps environment with internal ingress.
+    # IMPORTANT: this zone is REGION-SCOPED — the region segment is
+    # part of the zone name, not the record. Moving region means a
+    # different zone name. ADR-0002 pins this to westeurope.
+    "privatelink.${var.location}.azurecontainerapps.io",
+
+    # API Management with internal mode behind Front Door.
+    "privatelink.azure-api.net",
+  ])
 }
 
 resource "azurerm_private_dns_zone" "platform" {
@@ -46,11 +70,28 @@ resource "azurerm_private_dns_zone" "platform" {
   tags = var.required_tags
 }
 
-# Link each zone to the hub VNet. registration_enabled = false because
-# privatelink zones are RESOLUTION-only: clients query them to resolve
-# names, they don't auto-register VMs / NICs into the zone.
+resource "azurerm_private_dns_zone" "workload" {
+  for_each = local.workload_private_dns_zones
+
+  name                = each.value
+  resource_group_name = azurerm_resource_group.hub.name
+
+  tags = var.required_tags
+}
+
+# Link every zone (platform + workload) to the hub VNet.
+# registration_enabled = false because privatelink zones are
+# RESOLUTION-only: clients query them to resolve names, they don't
+# auto-register VMs / NICs into the zone.
+#
+# `merge()` is safe here because platform and workload zone names do
+# not overlap — each set is a `toset()` and the two sets are disjoint
+# by construction.
 resource "azurerm_private_dns_zone_virtual_network_link" "hub" {
-  for_each = azurerm_private_dns_zone.platform
+  for_each = merge(
+    azurerm_private_dns_zone.platform,
+    azurerm_private_dns_zone.workload,
+  )
 
   # Link names must be unique within a zone. Use the VNet name as the
   # disambiguator — when spokes get peered in, they'll add their own

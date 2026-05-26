@@ -28,8 +28,9 @@ output "subnet_ids" {
 }
 
 output "private_dns_zone_ids" {
-  description = "Map of platform-side private DNS zone name → resource ID. Workload layers reference these when creating private endpoints with private_dns_zone_group blocks."
-  value = {
-    for k, v in azurerm_private_dns_zone.platform : k => v.id
-  }
+  description = "Map of private DNS zone name → resource ID, covering both platform-side and workload-side zones. Downstream layers reference these by zone name when creating private endpoints with private_dns_zone_group blocks; they don't care which set a zone belongs to."
+  value = merge(
+    { for k, v in azurerm_private_dns_zone.platform : k => v.id },
+    { for k, v in azurerm_private_dns_zone.workload : k => v.id },
+  )
 }

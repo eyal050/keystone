@@ -12,7 +12,7 @@ Private DNS zones are centrally managed here.
 |---|---|---|---|
 | **E1** | ✅ applied 2026-05-24 | Hub RG, hub VNet, reserved subnets (firewall + management + gateway + default), default NSG, 4 platform-side Private DNS zones | ~€2/mo (4 × €0.50 DNS zones) |
 | **E2** | ✅ written 2026-05-25 | Azure Firewall Basic (on-demand) + 2 PIPs (on-demand) + firewall policy (always-on) | €0 idle / ~€115/mo while running |
-| E3 | pending | Workload-side Private DNS zones (Key Vault, Postgres, Container Apps, APIM) | ~€2/mo (4 more zones) |
+| **E3** | ✅ written 2026-05-25 | Workload-side Private DNS zones (Key Vault, Postgres, Container Apps, APIM) + hub VNet links | +~€2/mo (4 more zones) |
 | E4 | pending | Spoke VNet peering once workload VNets land | free (peering itself is free; data transfer between peered VNets is metered) |
 
 ## E1: what gets created
@@ -25,11 +25,19 @@ Private DNS zones are centrally managed here.
   - `GatewaySubnet` (10.10.1.0/27) — reserved for future VPN/ExpressRoute. Azure-mandated name.
   - `snet-default-001` (10.10.2.0/24) — placeholder workload-style subnet; NSG attaches here.
 - **NSG** `nsg-default-hub-weu-001`, associated with `snet-default-001`. Azure's implicit default rules are sufficient for now (deny inbound from internet, allow VNet inbound, allow outbound).
-- **4 Private DNS zones** linked to the hub VNet:
+- **4 platform-side Private DNS zones** linked to the hub VNet:
   - `privatelink.blob.core.windows.net`
   - `privatelink.monitor.azure.com`
   - `privatelink.ods.opinsights.azure.com`
   - `privatelink.oms.opinsights.azure.com`
+
+E3 adds **4 workload-side Private DNS zones** in the same hub, linked to the same hub VNet:
+  - `privatelink.vaultcore.azure.net` (Key Vault)
+  - `privatelink.postgres.database.azure.com` (PostgreSQL Flexible Server)
+  - `privatelink.westeurope.azurecontainerapps.io` (Container Apps env — **region-scoped zone**)
+  - `privatelink.azure-api.net` (API Management)
+
+The hub VNet link iterates over both sets via `merge()` — same link semantics, single resource address (`azurerm_private_dns_zone_virtual_network_link.hub`).
 
 ## Cost when E1 applies
 
