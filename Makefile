@@ -21,7 +21,7 @@
 SHELL := /bin/bash
 .SHELLFLAGS := -eu -o pipefail -c
 
-.PHONY: help cost fmt vend-sub destroy-platform destroy-workload
+.PHONY: help cost fmt vend-sub firewall-up firewall-down destroy-platform destroy-workload
 
 # Suppress the line-by-line command echo; targets are responsible for
 # their own output.
@@ -82,6 +82,34 @@ vend-sub:  ## Vend a Phase-2 sub and reconcile every downstream layer that for_e
 	echo
 	echo "When 40-identity lands, add it to this target's chain (it will"
 	echo "have the same for_each-over-subs pattern)."
+
+# -- Firewall on-demand lifecycle (ADR-0010) ---------------------------------
+#
+# The firewall is off by default to keep idle cost at €0. These targets
+# bring it up for a session and tear it down afterwards. Provisioning
+# is ~10–15 min on `up`; `down` is ~1 min.
+#
+# These are thin wrappers around `terraform apply -var=firewall_enabled=...`
+# — nothing magic. The firewall policy is always-on and unaffected by
+# these targets; only the firewall resource itself and its two PIPs
+# come and go.
+
+firewall-up:  ## Bring up Azure Firewall in 30-connectivity. ~10-15 min. Costs ~€115/mo while running.
+	echo "─── Bringing up Azure Firewall Basic in keystone-platform-connectivity ───"
+	echo "Provisioning takes ~10–15 minutes."
+	echo "Cost shape while running: ~€115/mo (firewall ~€275/mo prorated by time + 2× €3.20/mo PIPs)."
+	echo
+	./scripts/_tf-cmd.sh 30-connectivity apply -auto-approve -var=firewall_enabled=true
+	echo
+	echo "Firewall is up. Run \`make firewall-down\` at end of session to return to €0 idle cost."
+
+firewall-down:  ## Tear down Azure Firewall in 30-connectivity. Returns to €0 idle cost.
+	echo "─── Tearing down Azure Firewall Basic + PIPs ───"
+	echo "Firewall policy stays in state (free, always-on). Rules survive."
+	echo
+	./scripts/_tf-cmd.sh 30-connectivity apply -auto-approve -var=firewall_enabled=false
+	echo
+	echo "Firewall is down. Idle cost: €0."
 
 # -- Destroy targets ---------------------------------------------------------
 #

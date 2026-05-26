@@ -1,24 +1,17 @@
 # `platform/30-connectivity`
 
 Hub-spoke connectivity for Keystone. Lives in
-`keystone-platform-connectivity`. Per [ADR-0005](../../docs/decisions/0005-firewall-basic-with-deallocation.md)
-the firewall is Azure Firewall Basic with a scheduled deallocation;
-per CLAUDE.md §2, Private DNS zones are centrally managed here.
-
-## Apply is blocked
-
-`keystone-platform-connectivity` is vended in Phase 2 of
-`platform/05-subscriptions`, which is blocked on the MCA quota
-increase ticket. Until the sub exists, this layer is in the repo for
-**review only** — `terraform plan` will fail at the
-`data.azurerm_subscription.conn` lookup with "subscription not found".
+`keystone-platform-connectivity`. Per [ADR-0010](../../docs/decisions/0010-firewall-on-demand-not-scheduled.md)
+the firewall is Azure Firewall Basic, on-demand (default off), bringing
+the layer's idle cost down to the noise floor. Per CLAUDE.md §2,
+Private DNS zones are centrally managed here.
 
 ## Layer is built in sub-chunks
 
 | Sub-chunk | Status | Contents | Cost when applied |
 |---|---|---|---|
-| **E1** | ✅ written, ❌ not applied | Hub RG, hub VNet, reserved subnets (firewall + management + gateway + default), default NSG, 4 platform-side Private DNS zones | ~€2/mo (4 × €0.50 DNS zones) |
-| E2 | pending | Azure Firewall Basic + scheduled deallocation Action | ~€100/mo realised (€275/mo always-on, deallocated nights & weekends) |
+| **E1** | ✅ applied 2026-05-24 | Hub RG, hub VNet, reserved subnets (firewall + management + gateway + default), default NSG, 4 platform-side Private DNS zones | ~€2/mo (4 × €0.50 DNS zones) |
+| **E2** | ✅ written 2026-05-25 | Azure Firewall Basic (on-demand) + 2 PIPs (on-demand) + firewall policy (always-on) | €0 idle / ~€115/mo while running |
 | E3 | pending | Workload-side Private DNS zones (Key Vault, Postgres, Container Apps, APIM) | ~€2/mo (4 more zones) |
 | E4 | pending | Spoke VNet peering once workload VNets land | free (peering itself is free; data transfer between peered VNets is metered) |
 
@@ -45,7 +38,45 @@ increase ticket. Until the sub exists, this layer is in the repo for
 - DNS queries: first 1M/mo per zone free, then €0.40 per million. Lab volumes are deep in the free tier.
 
 This is the first layer where realised cost exits the noise floor.
-Cost rises significantly in E2 when the firewall lands.
+Cost rises only when E2's firewall is brought up on-demand.
+
+## E2: what gets created
+
+Per [ADR-0010](../../docs/decisions/0010-firewall-on-demand-not-scheduled.md):
+
+- **Firewall policy** `afwp-hub-conn-weu-001`, Basic tier — **always-on**.
+  Free. Survives firewall up/down cycles so rules persist across sessions.
+- **Firewall** `afw-hub-conn-weu-001`, Basic tier, `AZFW_VNet` SKU — **on-demand**.
+  Created only when `var.firewall_enabled = true`.
+- **2× Public IPs**, Standard SKU, Static — **on-demand**:
+  - `pip-afw-data-weu-001` (firewall data plane)
+  - `pip-afw-mgmt-weu-001` (firewall management plane, required by Basic)
+
+### Lifecycle
+
+```bash
+make firewall-up      # apply with -var=firewall_enabled=true  (~10-15 min)
+make firewall-down    # apply with -var=firewall_enabled=false (~1 min)
+```
+
+Default state is **down**. `make plan-30-connectivity` and
+`make apply-30-connectivity` without overrides plan/apply against
+the down state — they create the policy and nothing else.
+
+### Cost when E2 applies
+
+- Firewall policy alone (idle state): **free**.
+- Firewall + 2× PIPs while running: ~€115/mo prorated by hours.
+  - Firewall Basic: €0.378/hour (~€275/mo always-on).
+  - Public IPs: ~€0.0044/hour each, ~€6.40/mo for the pair when allocated.
+  - Data processing: €0.016/GB, negligible at lab volumes.
+
+### Ergonomic cost (worth flagging)
+
+Each `firewall-up` cycle allocates **new** public IPs with new addresses.
+Anything that allow-lists the firewall's egress IP (a workload's outbound
+NAT, a third-party allow-list) becomes stale on each cycle. This is the
+one real downside of the on-demand model — see ADR-0010.
 
 ## Lifecycle protections
 

@@ -65,3 +65,9 @@ variable "hub_address_space" {
   type        = list(string)
   default     = ["10.10.0.0/16"]
 }
+
+variable "firewall_enabled" {
+  description = "Whether the Azure Firewall and its public IPs exist. Per ADR-0010 the firewall is on-demand: default is false (€0 idle cost). Toggle via `make firewall-up` / `make firewall-down`, which call `terraform apply -var=firewall_enabled=true|false`. The firewall policy stays in state regardless."
+  type        = bool
+  default     = false
+}

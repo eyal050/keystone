@@ -22,8 +22,9 @@ ADRs follow a trimmed [MADR](https://adr.github.io/madr/) shape:
 | [0002](0002-region-westeurope.md) | Primary region: `westeurope` | Accepted |
 | [0003](0003-naming-convention-caf.md) | CAF naming convention via `Azure/naming` module | Accepted |
 | [0004](0004-mg-policy-hand-rolled-then-evaluate-module.md) | Hand-roll MG hierarchy and policy assignments; re-evaluate `Azure/caf-enterprise-scale` later | Accepted |
-| [0005](0005-firewall-basic-with-deallocation.md) | Azure Firewall Basic with scheduled deallocation | Accepted |
+| [0005](0005-firewall-basic-with-deallocation.md) | Azure Firewall Basic with scheduled deallocation | Superseded in part by [0010](0010-firewall-on-demand-not-scheduled.md) |
 | [0006](0006-workload-compute-aca.md) | ReelHouse compute: Azure Container Apps | Accepted |
 | [0007](0007-state-storage-in-platform-management.md) | Terraform state SA in `keystone-platform-management` | Accepted |
 | [0008](0008-tag-taxonomy.md) | Required-tag taxonomy with enumerated values | Accepted |
 | [0009](0009-subscription-staging-management-first.md) | Stage subscription vending: Management first, others post-quota | Accepted |
+| [0010](0010-firewall-on-demand-not-scheduled.md) | Firewall is on-demand (default off), not scheduled | Accepted |

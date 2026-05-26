@@ -1,6 +1,6 @@
 # ADR-0005: Azure Firewall Basic with scheduled deallocation
 
-- **Status**: Accepted
+- **Status**: Superseded in part by [ADR-0010](0010-firewall-on-demand-not-scheduled.md) on 2026-05-25 — the *availability model* (scheduled deallocation) was replaced by on-demand provisioning; the *tier choice* (Basic) is retained
 - **Date**: 2026-05-21
 - **Decider**: Eyal
 - **Supersedes**: —
