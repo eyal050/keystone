@@ -29,16 +29,52 @@ locals {
     "platform-identity"     = 20  # custom RBAC + MIs — no continuous-meter resources
     "reelhouse-dev"         = 100 # ACA consumption + Postgres B1ms + workload SA
     "reelhouse-prod"        = 100 # same shape as dev, separated for cost attribution
+
+    # Adopted subs (per ADR-0012). Brownfield onboarding pattern —
+    # lab-foundation hosts the ReelHouse workload because the
+    # dedicated workload subs are blocked at MCA quota.
+    "lab-foundation" = 50 # ACA + Postgres B1ms + storage; no firewall
   }
 
   budget_thresholds_pct = [10, 20, 50, 80, 100]
+
+  # `length(sensitive_var) > 0` propagates sensitivity into the derived
+  # map, blocking its use as a for_each key. nonsensitive() downgrades
+  # just the existence check; the GUID itself never crosses. Same
+  # pattern as 10-management-groups/associations.tf.
+  adoption_enabled = nonsensitive(length(var.lab_foundation_subscription_id) > 0)
+
+  # Adopted subs map (parallel shape to 05-subscriptions outputs.subscriptions
+  # so it merges cleanly). When more adopted subs land, expand this.
+  adopted_subscriptions = local.adoption_enabled ? {
+    "lab-foundation" = {
+      subscription_name = "lab-foundation"
+      workload          = "DevTest"
+      phase             = "adopted"
+    }
+  } : {}
+
+  adopted_subscription_ids = local.adoption_enabled ? {
+    "lab-foundation" = var.lab_foundation_subscription_id
+  } : {}
+
+  # Merged sets consumed by budgets + cost-exports. Adopted subs get
+  # the same monitoring envelope as vended ones.
+  all_subscriptions = merge(
+    data.terraform_remote_state.subscriptions.outputs.subscriptions,
+    local.adopted_subscriptions,
+  )
+  all_subscription_ids = merge(
+    data.terraform_remote_state.subscriptions.outputs.subscription_ids,
+    local.adopted_subscription_ids,
+  )
 }
 
 resource "azurerm_consumption_budget_subscription" "monthly" {
-  for_each = data.terraform_remote_state.subscriptions.outputs.subscriptions
+  for_each = local.all_subscriptions
 
   name            = "keystone-${each.key}-monthly"
-  subscription_id = "/subscriptions/${data.terraform_remote_state.subscriptions.outputs.subscription_ids[each.key]}"
+  subscription_id = "/subscriptions/${local.all_subscription_ids[each.key]}"
 
   amount     = local.budget_amounts[each.key]
   time_grain = "Monthly"

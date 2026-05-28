@@ -31,3 +31,15 @@ variable "state_storage_account_name" {
     error_message = "state_storage_account_name must be lowercase alphanumeric, 3-24 chars (Azure SA name constraint)."
   }
 }
+
+variable "lab_foundation_subscription_id" {
+  description = "Pre-existing `lab-foundation` MCA subscription ID, adopted into keystone-landing-zones-corp per ADR-0012. Empty string means no adoption — graceful on fresh clones / first apply. Sourced from KEYSTONE_LAB_FOUNDATION_SUBSCRIPTION_ID."
+  type        = string
+  sensitive   = true
+  default     = ""
+
+  validation {
+    condition     = var.lab_foundation_subscription_id == "" || can(regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", var.lab_foundation_subscription_id))
+    error_message = "lab_foundation_subscription_id must be either an empty string or a valid GUID."
+  }
+}

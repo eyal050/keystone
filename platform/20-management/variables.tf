@@ -97,3 +97,15 @@ variable "budget_alert_email" {
     error_message = "budget_alert_email must be a valid email address."
   }
 }
+
+variable "lab_foundation_subscription_id" {
+  description = "Pre-existing `lab-foundation` MCA subscription ID, adopted into keystone-landing-zones-corp per ADR-0012. Empty string means no adoption — graceful on fresh clones / first apply. Sourced from KEYSTONE_LAB_FOUNDATION_SUBSCRIPTION_ID. Required for the budget + cost-export for_each to include the adopted sub."
+  type        = string
+  sensitive   = true
+  default     = ""
+
+  validation {
+    condition     = var.lab_foundation_subscription_id == "" || can(regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", var.lab_foundation_subscription_id))
+    error_message = "lab_foundation_subscription_id must be either an empty string or a valid GUID."
+  }
+}

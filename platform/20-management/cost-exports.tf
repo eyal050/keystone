@@ -33,10 +33,10 @@ resource "azurerm_storage_container" "cost_exports" {
 # companion (Terraform allows sensitive values inside resource attributes,
 # just not as for_each keys).
 resource "azurerm_subscription_cost_management_export" "monthly" {
-  for_each = data.terraform_remote_state.subscriptions.outputs.subscriptions
+  for_each = local.all_subscriptions
 
   name            = "keystone-${each.key}-mtd"
-  subscription_id = "/subscriptions/${data.terraform_remote_state.subscriptions.outputs.subscription_ids[each.key]}"
+  subscription_id = "/subscriptions/${local.all_subscription_ids[each.key]}"
 
   recurrence_type = "Daily"
 

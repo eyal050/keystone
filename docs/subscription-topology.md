@@ -9,9 +9,10 @@ lifecycle status. Per [CLAUDE.md §3](../CLAUDE.md).
 |---|---|---|---|
 | `keystone-platform-management` | Log Analytics, diagnostic settings, cost exports, Terraform state SA | `keystone-platform-management` | **Vended 2026-05-21** (Phase 1) |
 | `keystone-platform-connectivity` | Hub VNet, Firewall Basic, Private DNS zones | `keystone-platform-connectivity` | **Vended 2026-05-24** (Phase 2, targeted) |
-| `keystone-platform-identity` | Custom RBAC, platform-scoped managed identities | `keystone-platform-identity` | Pending — MCA quota approved, ready to vend |
-| `keystone-reelhouse-dev` | ReelHouse workload — dev | `keystone-landing-zones-corp` | Pending — MCA quota approved, ready to vend |
-| `keystone-reelhouse-prod` | ReelHouse workload — prod | `keystone-landing-zones-corp` | Pending — MCA quota approved, ready to vend |
+| `keystone-platform-identity` | Custom RBAC, platform-scoped managed identities | `keystone-platform-identity` (MG) | **Blocked at MCA quota 2026-05-25** — Identity collapsed into Management per [ADR-0011](decisions/0011-identity-collapsed-into-management.md). MG remains for future adoption. |
+| `keystone-reelhouse-dev` | ReelHouse workload — dev | `keystone-landing-zones-corp` | Blocked at MCA quota. **2026-05-28: workaround chosen — adopt existing `lab-foundation` MCA sub into `keystone-landing-zones-corp` instead of vending a new sub.** |
+| `keystone-reelhouse-prod` | ReelHouse workload — prod | `keystone-landing-zones-corp` | Blocked at MCA quota. May share the adopted `lab-foundation` sub with dev to start; promote to a dedicated sub if/when quota raise is approved. |
+| `lab-foundation` *(pre-existing, not Terraform-vended)* | Workload host (adopted) | `keystone-landing-zones-corp` (target) | **Adoption planned 2026-05-28.** Pre-existed in Eyal's MCA before Keystone. Currently outside the MG hierarchy; to be moved under `keystone-landing-zones-corp` via the brownfield adoption pattern (forthcoming ADR). |
 
 ## MG hierarchy
 
@@ -65,16 +66,29 @@ After apply, the connectivity sub ID was captured into
 `~/.keystone/secrets.env` as
 `KEYSTONE_PLATFORM_CONNECTIVITY_SUBSCRIPTION_ID`.
 
-### Phase 2 — still pending
+### Phase 2 continuation — blocked 2026-05-25
 
-- `keystone-platform-identity` — vend before applying
-  `platform/40-identity`.
-- `keystone-reelhouse-dev` — vend before deploying the dev
-  workload.
-- `keystone-reelhouse-prod` — vend last, after dev workload runs
-  end-to-end.
+Attempted `make vend-sub ALIAS=platform-identity` and hit the MCA
+`SubscriptionCountReachedLimit` API error. The previous quota raise
+landed only 1 additional slot (used by `platform-connectivity`); the
+account is back at the cap with no more slots free.
 
-All three are quota-cleared; the gate now is "do we need it yet?"
+Reactions:
+
+- **`platform/40-identity` no longer waits.** Per
+  [ADR-0011](decisions/0011-identity-collapsed-into-management.md), the
+  identity layer operates from `keystone-platform-management` at MG
+  scope. Custom role definitions don't need a home sub. The
+  `keystone-platform-identity` MG stays empty for now, available for
+  future adoption if quota is later raised.
+- **Workload track unblocked via adoption (2026-05-28).** Rather than
+  wait for the quota ticket, ReelHouse will adopt the pre-existing
+  `lab-foundation` sub into `keystone-landing-zones-corp`. This
+  exercises the canonical CAF brownfield onboarding pattern — arguably
+  more useful for interview prep than another fresh vend.
+- **Quota raise ticket open with Microsoft;** ETA "slow." If/when
+  approved, the dedicated identity + reelhouse subs can still be
+  vended — they're orthogonal to the adoption path.
 
 ## Lifecycle rules
 

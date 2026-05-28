@@ -16,10 +16,17 @@ output "management_group_ids" {
 }
 
 output "associations" {
-  description = "Map of sub alias → MG id where that sub is currently associated."
-  value = {
-    for k, v in azurerm_management_group_subscription_association.this : k => v.management_group_id
-  }
+  description = "Map of sub alias → MG id where that sub is currently associated. Includes both vended subs (from 05-subscriptions) and adopted subs (per ADR-0012)."
+  value = merge(
+    { for k, v in azurerm_management_group_subscription_association.this : k => v.management_group_id },
+    { for k, v in azurerm_management_group_subscription_association.adopted : k => v.management_group_id },
+  )
+}
+
+output "adopted_subscription_ids" {
+  description = "Map of adopted-sub alias → subscription ID (GUID). Downstream layers (20-management, workloads/*) merge this with 05-subscriptions outputs to iterate over the full sub inventory. Sensitive because sub IDs are sensitive per CLAUDE.md §6."
+  value       = local.adopted_subscription_ids
+  sensitive   = true
 }
 
 output "policy_definition_ids" {

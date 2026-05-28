@@ -59,6 +59,7 @@ export TF_VAR_connectivity_subscription_id="${KEYSTONE_PLATFORM_CONNECTIVITY_SUB
 export TF_VAR_vending_subscription_id="${KEYSTONE_VENDING_CONTEXT_SUBSCRIPTION_ID:-}"
 export TF_VAR_billing_scope_id="${KEYSTONE_MCA_BILLING_SCOPE_ID:-}"
 export TF_VAR_budget_alert_email="${KEYSTONE_BUDGET_ALERT_EMAIL:-}"
+export TF_VAR_lab_foundation_subscription_id="${KEYSTONE_LAB_FOUNDATION_SUBSCRIPTION_ID:-}"
 
 # State storage account name: prefer the env var, fall back to az lookup.
 # The az lookup is the documented post-vend behavior (operator may not
