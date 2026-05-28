@@ -31,9 +31,9 @@ honesty boundary.
 | `05-subscriptions` | ⚠️ 2 of 5 planned subs vended (`platform-management`, `platform-connectivity`); the rest are blocked at MCA quota |
 | `10-management-groups` | ✅ Full MG hierarchy + 4 policy assignments + 1 custom policy definition + 1 exemption |
 | `20-management` | ✅ Log Analytics workspace, DfN diagnostic-settings policy + MI roles, per-sub cost exports + budgets, overview workbook + portal dashboard |
-| `30-connectivity` | ✅ E1 hub VNet + subnets + NSG, E2 on-demand firewall + policy, E3 platform + workload Private DNS zones. **E4 (spoke peering) pending workload.** |
+| `30-connectivity` | ✅ E1 hub VNet + subnets + NSG, E2 on-demand firewall + policy, E3 platform + workload Private DNS zones. **E4 dissolved per ADR-0013** (spoke peering moved to workload layer). |
 | `40-identity` | ✅ One custom role definition (Spoke Network Operator), MG-scoped; operates from Management per ADR-0011 |
-| `workloads/reelhouse` | ❌ Not started. `lab-foundation` adopted 2026-05-28 as the workload host (per ADR-0012); workload code itself still to come. |
+| `workloads/reelhouse/dev` | ✅ N1 spoke network skeleton — VNet + 3 subnets + bidirectional peering + 8 spoke DNS zone links. Compute / DB / KV / APIM / Front Door still pending. |
 
 **Idle cost when nothing is actively running**: ~€4/mo (8 Private DNS zones × €0.50/mo).
 **Cost when firewall is up**: +~€115/mo prorated by hours.
@@ -321,9 +321,9 @@ testing rules. Workload (when it lands) will follow the same
 
 | Item | Blocker |
 |---|---|
-| `workloads/reelhouse/` | Awaiting workload sub. Workaround chosen 2026-05-28: adopt `lab-foundation` MCA sub into `keystone-landing-zones-corp`. ADR forthcoming. |
-| `30-connectivity` E4 (spoke peering, UDR forcing through firewall) | Workload spoke VNet must exist first. |
-| Workload MI definitions | In `workloads/reelhouse/` when it lands; not in 40-identity. |
+| Workload compute / data plane (`workloads/reelhouse/dev/` C1/D1/K1/S1/A1/F1/W1) | Nothing — network skeleton is live, next chunks can land in any order. |
+| UDR forcing spoke egress through firewall | Conditional — only meaningful when the firewall is up (ADR-0010 on-demand). Lands when firewall rules become a real concern. |
+| Workload MI definitions | In `workloads/reelhouse/dev/` alongside their consumers when each consumer lands. |
 | GitHub Actions workflows | Per CLAUDE.md §5 — OIDC federation to Azure, per-env approvals. Local applies work today; CI is the next step once a layer churns. |
 | Going-public audit | Per CLAUDE.md §6 — gitleaks full-history scan + secrets inventory verification before flipping repo to public. |
 
