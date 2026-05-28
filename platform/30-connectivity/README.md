@@ -13,7 +13,7 @@ Private DNS zones are centrally managed here.
 | **E1** | ✅ applied 2026-05-24 | Hub RG, hub VNet, reserved subnets (firewall + management + gateway + default), default NSG, 4 platform-side Private DNS zones | ~€2/mo (4 × €0.50 DNS zones) |
 | **E2** | ✅ written 2026-05-25 | Azure Firewall Basic (on-demand) + 2 PIPs (on-demand) + firewall policy (always-on) | €0 idle / ~€115/mo while running |
 | **E3** | ✅ written 2026-05-25 | Workload-side Private DNS zones (Key Vault, Postgres, Container Apps, APIM) + hub VNet links | +~€2/mo (4 more zones) |
-| E4 | pending | Spoke VNet peering once workload VNets land | free (peering itself is free; data transfer between peered VNets is metered) |
+| ~~E4~~ | **Dissolved 2026-05-28** | Was: "spoke VNet peering once workload VNets land". Per [ADR-0013](../../docs/decisions/0013-workload-owns-spoke-network.md), spoke peering + spoke-side DNS links are now owned by the workload layer (`workloads/reelhouse/dev/`) via aliased `azurerm` providers. This layer stops at the hub. | — |
 
 ## E1: what gets created
 

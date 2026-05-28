@@ -15,12 +15,22 @@
 # Usage:
 #   ./scripts/_tf-cmd.sh <layer> <terraform-subcommand> [args...]
 #
+# `layer` can be either:
+#   - A platform layer short name (e.g. "30-connectivity") — resolved
+#     to platform/30-connectivity. State key: platform-30-connectivity.tfstate.
+#   - A path-from-repo-root containing a slash (e.g.
+#     "workloads/reelhouse/dev") — used verbatim. State key:
+#     workloads-reelhouse-dev.tfstate (slashes → hyphens). Heuristic
+#     trigger: contains a "/".
+#
 # Examples:
 #   ./scripts/_tf-cmd.sh 30-connectivity plan
 #   ./scripts/_tf-cmd.sh 20-management apply -auto-approve
 #   ./scripts/_tf-cmd.sh 05-subscriptions apply -auto-approve \
 #       -var=vend_phase=phase-2 \
 #       -target='azurerm_subscription.this["platform-identity"]'
+#   ./scripts/_tf-cmd.sh workloads/reelhouse/dev plan
+#   ./scripts/_tf-cmd.sh workloads/reelhouse/dev apply -auto-approve
 
 set -euo pipefail
 
@@ -33,7 +43,17 @@ layer="$1"
 cmd="$2"
 shift 2
 
-layer_dir="platform/${layer}"
+# Path-mode if the layer arg contains a slash; otherwise platform short-name.
+if [[ "$layer" == */* ]]; then
+  layer_dir="$layer"
+  # Derive a state-key suffix from the path: slashes → hyphens.
+  # workloads/reelhouse/dev → workloads-reelhouse-dev
+  state_key="$(echo "$layer" | tr '/' '-').tfstate"
+else
+  layer_dir="platform/${layer}"
+  state_key="platform-${layer}.tfstate"
+fi
+
 if [[ ! -d "$layer_dir" ]]; then
   echo "ERROR: layer directory not found: $layer_dir" >&2
   exit 2
@@ -60,6 +80,10 @@ export TF_VAR_vending_subscription_id="${KEYSTONE_VENDING_CONTEXT_SUBSCRIPTION_I
 export TF_VAR_billing_scope_id="${KEYSTONE_MCA_BILLING_SCOPE_ID:-}"
 export TF_VAR_budget_alert_email="${KEYSTONE_BUDGET_ALERT_EMAIL:-}"
 export TF_VAR_lab_foundation_subscription_id="${KEYSTONE_LAB_FOUNDATION_SUBSCRIPTION_ID:-}"
+# Workload layers (workloads/*) read workload_subscription_id. Today it
+# maps to lab-foundation per ADR-0012; if a dedicated reelhouse-dev sub
+# is vended later, change the source env var here.
+export TF_VAR_workload_subscription_id="${KEYSTONE_LAB_FOUNDATION_SUBSCRIPTION_ID:-}"
 
 # State storage account name: prefer the env var, fall back to az lookup.
 # The az lookup is the documented post-vend behavior (operator may not
@@ -92,7 +116,7 @@ terraform init -reconfigure \
   -backend-config="resource_group_name=rg-tfstate-plat-weu-001" \
   -backend-config="storage_account_name=$TF_VAR_state_storage_account_name" \
   -backend-config="container_name=tfstate" \
-  -backend-config="key=platform-${layer}.tfstate" \
+  -backend-config="key=${state_key}" \
   > /dev/null
 
 # Hand the rest off to terraform. Any args the caller passed after the

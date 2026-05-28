@@ -1,0 +1,12 @@
+# Example tfvars for workloads/reelhouse/dev.
+#
+# All values come from environment variables set by scripts/_tf-cmd.sh
+# (which sources ~/.keystone/secrets.env). No .tfvars file is needed
+# for normal use. This file exists as documentation of what variables
+# the layer reads.
+
+# tenant_id                    = "<KEYSTONE_TENANT_ID>"
+# workload_subscription_id     = "<KEYSTONE_LAB_FOUNDATION_SUBSCRIPTION_ID>"
+# connectivity_subscription_id = "<KEYSTONE_PLATFORM_CONNECTIVITY_SUBSCRIPTION_ID>"
+# mgmt_subscription_id         = "<KEYSTONE_PLATFORM_MANAGEMENT_SUBSCRIPTION_ID>"
+# state_storage_account_name   = "<KEYSTONE_STATE_STORAGE_ACCOUNT_NAME>"
