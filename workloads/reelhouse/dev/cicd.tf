@@ -164,16 +164,13 @@ data "azurerm_resource_group" "hub" {
   name     = data.terraform_remote_state.connectivity.outputs.hub_resource_group_name
 }
 
-# State SA (management sub) — scope for the state-container grants.
-data "azurerm_storage_account" "state" {
-  provider            = azurerm.management
-  name                = var.state_storage_account_name
-  resource_group_name = "rg-tfstate-plat-weu-001"
-}
-
 locals {
-  # ARM ID of the state blob container the azurerm backend uses.
-  state_container_id = "${data.azurerm_storage_account.state.id}/blobServices/default/containers/tfstate"
+  # ARM ID of the state blob container the azurerm backend uses. Constructed
+  # from known values rather than read via a data source — reading the SA
+  # would require management-plane storageAccounts/read on the state SA, which
+  # the CI identities deliberately don't have (they only get data-plane Storage
+  # Blob Data roles on the container).
+  state_container_id = "/subscriptions/${var.mgmt_subscription_id}/resourceGroups/rg-tfstate-plat-weu-001/providers/Microsoft.Storage/storageAccounts/${var.state_storage_account_name}/blobServices/default/containers/tfstate"
 }
 
 # --- Plan identity: Reader on the hub RG (connectivity sub) ----------------

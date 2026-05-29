@@ -98,8 +98,15 @@ jobs:
 
       - name: terraform plan
         id: plan
+        # -refresh=false keeps the read-only plan identity truly minimal: it
+        # never reads data-plane content (KV secret values, Container App
+        # secrets) during refresh. This is the secure posture — the tfplan
+        # identity is assumable by any PR and the plan output is posted as a PR
+        # comment, so it must not be able to read secrets. Drift detection is
+        # the gated apply's job. -lock=false: a read-only PR plan shouldn't lock
+        # shared state.
         run: |
-          terraform -chdir="$LAYER_DIR" plan -lock=false -no-color -input=false \
+          terraform -chdir="$LAYER_DIR" plan -refresh=false -lock=false -no-color -input=false \
             | tee plan.txt
 
       - name: Post plan as PR comment
