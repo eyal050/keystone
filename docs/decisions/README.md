@@ -32,3 +32,4 @@ ADRs follow a trimmed [MADR](https://adr.github.io/madr/) shape:
 | [0012](0012-adopt-lab-foundation-as-workload-sub.md) | Adopt pre-existing `lab-foundation` sub as the workload host (brownfield) | Accepted |
 | [0013](0013-workload-owns-spoke-network.md) | Workload layer owns the spoke VNet, both peerings, and spoke DNS zone links (via provider aliasing) | Accepted |
 | [0014](0014-defer-apim-and-front-door.md) | Defer APIM + Front Door in workload (cost/learning trade; ACA external ingress as public entry) | Accepted |
+| [0015](0015-cicd-acr-uami-oidc.md) | CI/CD via ACR (Basic) + UAMI + federated OIDC; CI owns image, Terraform ignores it | Accepted |

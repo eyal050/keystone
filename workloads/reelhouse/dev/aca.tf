@@ -71,9 +71,30 @@ resource "azurerm_container_app" "api" {
   resource_group_name          = azurerm_resource_group.workload.name
   revision_mode                = "Single"
 
+  # ACA env has only one workload profile ("Consumption"), and Azure
+  # auto-assigns it. Declaring it explicitly aligns Terraform state
+  # with reality (otherwise every plan shows a spurious update trying
+  # to set it to null, which would trigger an unwanted revision).
+  workload_profile_name = "Consumption"
+
   identity {
     type = "SystemAssigned"
   }
+
+  # NOTE: the registry block is DELIBERATELY NOT declared here even
+  # though we use ACR. Adding it in Terraform would create a
+  # chicken-and-egg cycle: the new ACA revision requires AcrPull on
+  # the ACR, but the AcrPull role assignment depends on the Container
+  # App's MI principal_id (Terraform processes them in that order).
+  # Each apply that introduces the registry block triggers a revision
+  # that times out before the role assignment lands.
+  #
+  # Per ADR-0015 the GH Actions workflow runs:
+  #   az containerapp registry set --identity system --server ${ACR}
+  #   az containerapp update --image ${ACR}/${repo}:${sha}
+  # in that order, AFTER terraform apply has landed the AcrPull role.
+  # Both fields are then listed in `lifecycle.ignore_changes` below so
+  # Terraform doesn't fight CI.
 
   template {
     min_replicas = 0 # scale-to-zero for cost
@@ -119,6 +140,20 @@ resource "azurerm_container_app" "api" {
   }
 
   tags = var.required_tags
+
+  lifecycle {
+    # Both fields owned by CI per ADR-0015:
+    # - `template[0].container[0].image` — set on each deploy via
+    #   `az containerapp update --image ${ACR}/${repo}:${sha}`.
+    # - `registry` — set once during the first deploy via
+    #   `az containerapp registry set --identity system --server ${ACR}`.
+    # Without these ignores, every terraform plan after a CI deploy
+    # would want to revert both fields.
+    ignore_changes = [
+      template[0].container[0].image,
+      registry,
+    ]
+  }
 }
 
 # --- RBAC: ACA MI → KV / Blob -----------------------------------------------
