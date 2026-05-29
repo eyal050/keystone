@@ -60,3 +60,15 @@ output "github_actions_client_id" {
   value       = azurerm_user_assigned_identity.github_actions.client_id
   sensitive   = true
 }
+
+output "tfplan_client_id" {
+  description = "Client ID of the read-only Terraform plan identity. Set as repo secret AZURE_TF_PLAN_CLIENT_ID."
+  value       = azurerm_user_assigned_identity.tfplan.client_id
+  sensitive   = true
+}
+
+output "tfapply_client_id" {
+  description = "Client ID of the read-write Terraform apply identity. Set as workload-dev environment secret AZURE_TF_APPLY_CLIENT_ID."
+  value       = azurerm_user_assigned_identity.tfapply.client_id
+  sensitive   = true
+}
