@@ -1,0 +1,113 @@
+name: reelhouse-dev-plan
+
+# Terraform plan for workloads/reelhouse/dev on PRs. Read-only: authenticates
+# as the tfplan UAMI (Reader) via federated OIDC. Posts the plan as a PR
+# comment. No apply, no state lock (-lock=false). Design spec 2026-05-29.
+
+on:
+  pull_request:
+    paths:
+      - "workloads/reelhouse/dev/**"
+      - ".github/workflows/reelhouse-dev-plan.yml"
+
+permissions:
+  id-token: write       # OIDC token exchange
+  contents: read        # checkout
+  pull-requests: write  # post plan comment
+
+env:
+  TF_VERSION: "1.9.8"
+  LAYER_DIR: workloads/reelhouse/dev
+  STATE_RG: rg-tfstate-plat-weu-001
+  STATE_CONTAINER: tfstate
+  STATE_KEY: workloads-reelhouse-dev.tfstate
+  # State SA name is a public resource name, not a §6-forbidden value
+  # (same class as ACR_NAME in reelhouse-build-deploy.yml).
+  STATE_SA: sttfstateplatweu66ff6e
+  ARM_USE_AZUREAD: "true"
+  # TF_VARs the layer needs (terraform.tfvars is gitignored). Sensitive ones
+  # come from secrets; defaulted ones (location, spoke_address_space,
+  # postgres_enabled=false, workload_pe_enabled=false, required_tags) are left
+  # at their declared defaults.
+  TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+  TF_VAR_workload_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  TF_VAR_connectivity_subscription_id: ${{ secrets.AZURE_CONNECTIVITY_SUBSCRIPTION_ID }}
+  TF_VAR_mgmt_subscription_id: ${{ secrets.AZURE_MGMT_SUBSCRIPTION_ID }}
+  TF_VAR_operator_ip: ${{ secrets.OPERATOR_IP }}
+  TF_VAR_state_storage_account_name: sttfstateplatweu66ff6e
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Azure OIDC login (tfplan, read-only)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_TF_PLAN_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: terraform fmt -check
+        run: terraform -chdir="$LAYER_DIR" fmt -check -recursive
+
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+
+      - name: tflint
+        run: |
+          cd "$LAYER_DIR"
+          tflint --init
+          tflint
+
+      - name: tfsec
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: ${{ env.LAYER_DIR }}
+
+      - name: terraform init
+        run: |
+          terraform -chdir="$LAYER_DIR" init \
+            -backend-config="subscription_id=${{ secrets.AZURE_MGMT_SUBSCRIPTION_ID }}" \
+            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -backend-config="resource_group_name=$STATE_RG" \
+            -backend-config="storage_account_name=$STATE_SA" \
+            -backend-config="container_name=$STATE_CONTAINER" \
+            -backend-config="key=$STATE_KEY" \
+            -backend-config="use_azuread_auth=true"
+
+      - name: terraform plan
+        id: plan
+        run: |
+          terraform -chdir="$LAYER_DIR" plan -lock=false -no-color -input=false \
+            | tee plan.txt
+
+      - name: Post plan as PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('plan.txt', 'utf8');
+            const body = [
+              '#### `terraform plan` — workloads/reelhouse/dev',
+              '```',
+              plan.length > 60000 ? plan.slice(-60000) : plan,
+              '```'
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });
