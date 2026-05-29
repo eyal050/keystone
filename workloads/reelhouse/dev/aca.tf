@@ -61,6 +61,16 @@ resource "azurerm_container_app_environment" "this" {
   }
 
   tags = var.required_tags
+
+  # Azure stores the workspace CUSTOMER ID internally, not the resource ID, so
+  # azurerm can't read log_analytics_workspace_id back — it shows a perpetual
+  # diff and every apply re-sets it. Re-setting reads the LAW's keys in the
+  # platform-management sub, which a workload CI identity rightly can't reach.
+  # The link is set once at creation; ignore_changes freezes it, killing both
+  # the churn and the cross-sub dependency. (Set-once-can't-read-back field.)
+  lifecycle {
+    ignore_changes = [log_analytics_workspace_id]
+  }
 }
 
 # --- Container App -----------------------------------------------------------
