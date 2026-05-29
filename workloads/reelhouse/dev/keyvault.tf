@@ -18,16 +18,17 @@
 
 data "azurerm_client_config" "current" {}
 
-# tfsec:ignore:azure-keyvault-specify-network-acl Deliberate lab trade-off:
-#   public_network_access_enabled=true (see comment below) is required so the
-#   operator can write secrets over the public control plane; RBAC is the
-#   actual access control. A default-Deny network ACL would block that path
-#   and the ACA app's public-endpoint + RBAC access when the PE is off
-#   (ADR-0017 on-demand data plane). Production would use default-Deny + PE-only.
-# tfsec:ignore:azure-keyvault-no-purge Deliberate lab trade-off: purge
-#   protection is off so `terraform destroy` can fully clean up the vault
-#   during lab iteration (see purge_protection_enabled comment). Production
-#   should enable it.
+# Two deliberate lab trade-offs, justified inline below and suppressed for
+# tfsec (directives must be on the lines immediately above the resource):
+#   - specify-network-acl: public_network_access_enabled=true (see comment
+#     below) is required so the operator can write secrets over the public
+#     control plane; RBAC is the actual access control. A default-Deny ACL
+#     would block that path and the ACA app's public-endpoint + RBAC access
+#     when the PE is off (ADR-0017). Production would use default-Deny + PE-only.
+#   - no-purge: purge protection is off so `terraform destroy` can fully clean
+#     up the vault during lab iteration. Production should enable it.
+#tfsec:ignore:azure-keyvault-specify-network-acl
+#tfsec:ignore:azure-keyvault-no-purge
 resource "azurerm_key_vault" "this" {
   name                = "kv-reelhdev-${random_string.kv_suffix.result}"
   resource_group_name = azurerm_resource_group.workload.name
