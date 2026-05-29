@@ -18,6 +18,16 @@
 
 data "azurerm_client_config" "current" {}
 
+# tfsec:ignore:azure-keyvault-specify-network-acl Deliberate lab trade-off:
+#   public_network_access_enabled=true (see comment below) is required so the
+#   operator can write secrets over the public control plane; RBAC is the
+#   actual access control. A default-Deny network ACL would block that path
+#   and the ACA app's public-endpoint + RBAC access when the PE is off
+#   (ADR-0017 on-demand data plane). Production would use default-Deny + PE-only.
+# tfsec:ignore:azure-keyvault-no-purge Deliberate lab trade-off: purge
+#   protection is off so `terraform destroy` can fully clean up the vault
+#   during lab iteration (see purge_protection_enabled comment). Production
+#   should enable it.
 resource "azurerm_key_vault" "this" {
   name                = "kv-reelhdev-${random_string.kv_suffix.result}"
   resource_group_name = azurerm_resource_group.workload.name
@@ -95,7 +105,17 @@ resource "azurerm_key_vault_secret" "postgres_password" {
 
   content_type = "text/plain"
 
+  # Expiry set 1 year from creation. timeadd(timestamp(), …) + ignore_changes
+  # avoids the literal-date trap (break-debug-log 2026-05-29): a hardcoded
+  # date is correct only on the day it's written; this evaluates at apply
+  # time and is then frozen so it never churns the plan.
+  expiration_date = timeadd(timestamp(), "8760h")
+
   depends_on = [azurerm_role_assignment.operator_kv_admin]
+
+  lifecycle {
+    ignore_changes = [expiration_date]
+  }
 }
 
 resource "azurerm_key_vault_secret" "postgres_connection_string" {
@@ -112,7 +132,14 @@ resource "azurerm_key_vault_secret" "postgres_connection_string" {
 
   content_type = "text/plain"
 
+  # See postgres_password for the timeadd(timestamp()) + ignore_changes rationale.
+  expiration_date = timeadd(timestamp(), "8760h")
+
   depends_on = [azurerm_role_assignment.operator_kv_admin]
+
+  lifecycle {
+    ignore_changes = [expiration_date]
+  }
 }
 
 resource "azurerm_key_vault_secret" "reelhouse_admin_password" {
@@ -122,7 +149,14 @@ resource "azurerm_key_vault_secret" "reelhouse_admin_password" {
 
   content_type = "text/plain"
 
+  # See postgres_password for the timeadd(timestamp()) + ignore_changes rationale.
+  expiration_date = timeadd(timestamp(), "8760h")
+
   depends_on = [azurerm_role_assignment.operator_kv_admin]
+
+  lifecycle {
+    ignore_changes = [expiration_date]
+  }
 }
 
 # --- Private endpoint into snet-pe-001 --------------------------------------
