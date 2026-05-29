@@ -24,6 +24,14 @@ resource "azurerm_storage_account" "videos" {
   resource_group_name = azurerm_resource_group.workload.name
   location            = azurerm_resource_group.workload.location
 
+  # Per ADR-0016, this SA needs PNA=true (gated by network_rules).
+  # The deny-storage-public policy at keystone-landing-zones-corp MG
+  # scope would block that without an exemption. The exemption is
+  # constructed below to reference this SA by reconstructed ID (not
+  # via resource ref) so Terraform can order: exemption first, then
+  # SA update. Otherwise SA→exemption would cycle.
+  depends_on = [azurerm_resource_policy_exemption.videos_pna_operator_access]
+
   account_tier             = "Standard"
   account_replication_type = "LRS"
   account_kind             = "StorageV2"
@@ -40,8 +48,31 @@ resource "azurerm_storage_account" "videos" {
   # not via an account key.
   shared_access_key_enabled = false
 
-  # PE only — public network access denied by both policy and config.
-  public_network_access_enabled = false
+  # Public network access ENABLED but gated by network_rules below.
+  # Per ADR-0016 the operator's IP is allowlisted so portal blob browse
+  # and `az storage blob list` work from the operator's laptop. ACA
+  # still reaches this SA via the PE — the public endpoint only opens
+  # for the explicit allowlist.
+  #
+  # The deny-storage-public policy at keystone-landing-zones-corp MG
+  # scope would normally reject PNA=true; the resource-scoped exemption
+  # at the bottom of this file is what makes it possible.
+  public_network_access_enabled = true
+
+  network_rules {
+    default_action = "Deny"
+
+    # AzureServices bypass lets Azure-internal services (some Azure
+    # Monitor paths, diagnostic settings, etc.) reach the account
+    # without per-service IP rules. Belt-and-suspenders; not strictly
+    # required for operator portal browse.
+    bypass = ["AzureServices"]
+
+    # Operator's home IP per ADR-0016. Bare IPv4, no CIDR — Azure
+    # storage's ip_rules accepts either bare IPv4 (single host) or
+    # CIDR with /0-30 (range). /32 is explicitly rejected.
+    ip_rules = var.operator_ip != "" ? [var.operator_ip] : []
+  }
 
   # Soft delete: 7 days for blobs (lab default — recoverable
   # mistakes without long-term storage cost). No container soft delete
@@ -55,10 +86,48 @@ resource "azurerm_storage_account" "videos" {
   tags = var.required_tags
 }
 
+# Resource-scoped exemption from the deny-storage-public policy at
+# keystone-landing-zones-corp MG scope. Per ADR-0016 the operator
+# needs PNA enabled (with strict ACLs) for ad-hoc portal browse and
+# `az storage blob list`. The exemption is scoped to THIS SA only —
+# every other workload SA still inherits the deny.
+resource "azurerm_resource_policy_exemption" "videos_pna_operator_access" {
+  name         = "videos-pna-operator-access"
+  display_name = "Operator IP allowlist exemption per ADR-0016"
+  description  = "Exempts this storage account from deny-storage-public so the operator can inspect blob contents from their laptop (portal + az CLI). The SA still denies all public traffic except the operator's IP via network_rules."
+
+  # Construct the resource ID from the same primitives the SA uses
+  # (RG name + random suffix) instead of referencing the SA resource
+  # directly. This breaks the dependency cycle that would otherwise
+  # form (SA needs exemption to apply, exemption would need SA to
+  # exist). With this shape, the exemption depends only on RG +
+  # random_string, and the SA depends on the exemption — clean
+  # ordering, no cycle.
+  resource_id = "/subscriptions/${var.workload_subscription_id}/resourceGroups/${azurerm_resource_group.workload.name}/providers/Microsoft.Storage/storageAccounts/streelhdev${random_string.storage_suffix.result}"
+
+  exemption_category = "Waiver"
+
+  # The assignment lives at keystone-landing-zones-corp MG scope
+  # (see platform/10-management-groups/policy-assignments.tf). The
+  # exemption references the assignment ID, not the definition ID.
+  policy_assignment_id = "${data.terraform_remote_state.management_groups.outputs.management_group_ids.landing_zones_corp}/providers/Microsoft.Authorization/policyAssignments/deny-storage-public"
+}
+
 resource "azurerm_storage_container" "videos" {
   name                  = "videos"
   storage_account_id    = azurerm_storage_account.videos.id
   container_access_type = "private"
+}
+
+# Operator data-plane RBAC. Owner on the sub is control-plane only;
+# without an explicit Storage Blob Data role, even `az storage blob list
+# --auth-mode login` returns "do not have the required permissions."
+# Mirror the keyvault operator_kv_admin pattern: grant the current
+# `terraform apply` identity full data-plane access on this SA.
+resource "azurerm_role_assignment" "operator_blob_contributor" {
+  scope                = azurerm_storage_account.videos.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = data.azurerm_client_config.current.object_id
 }
 
 # --- Private endpoint into snet-pe-001 --------------------------------------
