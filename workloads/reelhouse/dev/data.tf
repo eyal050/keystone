@@ -22,3 +22,18 @@ data "terraform_remote_state" "connectivity" {
     key                  = "platform-30-connectivity.tfstate"
   }
 }
+
+# Read MG hierarchy IDs from platform/10-management-groups outputs.
+# Used by storage.tf for the resource-scoped policy exemption (per ADR-0016).
+data "terraform_remote_state" "management_groups" {
+  backend = "azurerm"
+
+  config = {
+    subscription_id      = var.mgmt_subscription_id
+    tenant_id            = var.tenant_id
+    resource_group_name  = "rg-tfstate-plat-weu-001"
+    storage_account_name = var.state_storage_account_name
+    container_name       = "tfstate"
+    key                  = "platform-10-management-groups.tfstate"
+  }
+}

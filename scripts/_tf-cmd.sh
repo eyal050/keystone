@@ -84,6 +84,10 @@ export TF_VAR_lab_foundation_subscription_id="${KEYSTONE_LAB_FOUNDATION_SUBSCRIP
 # maps to lab-foundation per ADR-0012; if a dedicated reelhouse-dev sub
 # is vended later, change the source env var here.
 export TF_VAR_workload_subscription_id="${KEYSTONE_LAB_FOUNDATION_SUBSCRIPTION_ID:-}"
+# Operator IP for ad-hoc data-plane access to workload resources
+# (e.g. storage portal browse). See ADR-0016. Updates when the
+# operator's residential IP changes.
+export TF_VAR_operator_ip="${KEYSTONE_OPERATOR_IP:-}"
 
 # State storage account name: prefer the env var, fall back to az lookup.
 # The az lookup is the documented post-vend behavior (operator may not

@@ -67,6 +67,19 @@ variable "spoke_address_space" {
   default     = ["10.20.0.0/20"]
 }
 
+variable "operator_ip" {
+  description = "Operator's current public IP, allowlisted on the workload storage account for ad-hoc portal / az CLI inspection (per ADR-0016). Empty string means no allowlist (PE-only, no operator access). When the operator's residential IP changes, update KEYSTONE_OPERATOR_IP in ~/.keystone/secrets.env and re-apply."
+  type        = string
+  sensitive   = true
+  default     = ""
+
+  validation {
+    # Either empty or a valid IPv4 (CIDR added below).
+    condition     = var.operator_ip == "" || can(regex("^([0-9]{1,3}\\.){3}[0-9]{1,3}$", var.operator_ip))
+    error_message = "operator_ip must be either empty or a bare IPv4 address (no CIDR — /32 is appended by the storage rule)."
+  }
+}
+
 variable "workload_image" {
   description = "Container image for the ReelHouse API Container App. Defaults to Microsoft's aci-helloworld placeholder so Terraform applies cleanly before the real image exists. Swap with `ghcr.io/eyal050/reelhouse-api:latest` (or wherever you push the built image from `app/api/Dockerfile`) and re-apply once available."
   type        = string
