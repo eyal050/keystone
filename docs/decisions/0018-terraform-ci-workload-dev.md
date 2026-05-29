@@ -72,6 +72,37 @@ design. The env-scoped OIDC subject is the cryptographic half of the control;
 the protection rule is the human half. On private-free, the human half is
 substituted by an explicit manual trigger.
 
+## Making the layer CI-applyable (what apply actually required)
+
+The layer was authored for a single human operator (subscription Owner). Running
+it under a least-privilege CI identity surfaced gaps that needed targeted fixes
+(full cascade in `docs/break-debug-log.md`, 2026-05-29):
+
+- **Pinned operator grants.** `operator_kv_admin` + `operator_blob_contributor`
+  use `data.azurerm_client_config.current.object_id`, which under CI resolves to
+  the apply UAMI. Added `ignore_changes = [principal_id]` so they stay
+  operator-owned (re-pointing Key Vault Administrator is also correctly blocked
+  by the ABAC allow-list).
+- **KV data plane for apply.** KV is RBAC-mode; Contributor grants no data-plane
+  access. Added `Key Vault Secrets Officer` for the apply identity (KV is
+  public-reachable, RBAC-gated).
+- **Mgmt-plane Reader on the state container** for both identities — the
+  data-plane Storage Blob Data roles don't include `roleAssignments/read`, which
+  refresh needs for the state-grant role-assignment resources.
+- **`ignore_changes` on the ACA env `log_analytics_workspace_id`** — a
+  set-once-can't-read-back field whose perpetual diff made CI reach LAW keys in
+  the platform-management sub. Freezing it kills the churn and the cross-sub
+  dependency.
+- **Terraform OIDC, not CLI.** `ARM_USE_OIDC=true` + `ARM_CLIENT_ID/...` so the
+  backend and providers authenticate via OIDC (the azurerm backend can't use the
+  `azure/login` CLI session for a service principal).
+- **Read-only plan stays minimal.** `terraform plan -refresh=false` so the
+  PR-assumable plan identity never reads data-plane secrets; state-container ID
+  is constructed, not read via a data source (avoids needing mgmt-plane read).
+
+Verified end-to-end 2026-05-29: plan-on-PR green (PR #1, plan posted as comment);
+`workflow_dispatch` apply green and idempotent (`0 added, 0 changed, 0 destroyed`).
+
 ## Consequences
 
 - Local applies still work (the `scripts/_tf-cmd.sh` wrapper is unchanged); CI

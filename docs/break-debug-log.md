@@ -309,3 +309,55 @@ seeds were created for later:
   required-reviewer rule is unavailable, so apply only runs on manual
   dispatch. If someone expects apply to fire on merge and it doesn't, that
   is by design (ADR-0018) — not a broken trigger.
+
+## 2026-05-29 — Making the dev layer CI-applyable (live debugging cascade)
+
+Wiring CI apply for `workloads/reelhouse/dev` surfaced a cascade of
+real failures, each fixed in turn. This is the "a layer authored for a
+single human operator doesn't just run in CI" lesson, in detail. Order
+of discovery (each was a separate red CI run):
+
+1. **tfsec gate (4 KV findings)** — first-ever security scan lit up
+   pre-existing debt. Fixed: justified `#tfsec:ignore` for the two
+   deliberate lab trade-offs (public network access, purge protection);
+   real expiry via `time_static` for the secrets. *Trap hit:* `# tfsec:ignore`
+   with a space after `#` is NOT recognized — must be `#tfsec:ignore`.
+2. **Backend auth: "Azure CLI is only supported as a User (not a Service
+   Principal)"** — `azure/login` sets up a CLI session, but the azurerm
+   backend can't use CLI auth for an SP. Fix: `ARM_USE_OIDC=true` +
+   `ARM_CLIENT_ID/TENANT_ID/SUBSCRIPTION_ID` so Terraform authenticates
+   via OIDC directly. Signal: the error names "Service Principal" + CLI.
+3. **Plan identity (Reader) 403 on data-plane reads** — `terraform plan`
+   refresh reads KV secret values, Container App listSecrets, and a
+   storage-account data source the Reader couldn't reach. Fix (and the
+   *secure* choice, since the plan identity is PR-assumable and its output
+   is posted as a comment): `terraform plan -refresh=false`, and construct
+   the state-container ID instead of reading the SA via a data source.
+4. **Apply identity 403 reading state-grant role assignments** — the
+   apply identity had only DATA-plane `Storage Blob Data` on the state
+   container; refreshing the role-assignment resources living AT that scope
+   needs management-plane `Microsoft.Authorization/roleAssignments/read`.
+   Fix: container-scoped `Reader` for both CI identities. *Lesson:* a
+   `azurerm_role_assignment` scoped to X requires roleAssignments/read at X
+   to refresh — data-plane roles don't grant it.
+5. **Apply identity 403 reading platform LAW keys** — the ACA env's
+   `log_analytics_workspace_id` is a set-once-can't-read-back field (Azure
+   stores the workspace customer ID, not the resource ID), so it showed a
+   *perpetual diff*; re-setting it reads the LAW's keys in the platform-
+   management sub, which a workload CI identity rightly can't reach. Fix:
+   `lifecycle { ignore_changes = [log_analytics_workspace_id] }` — freezes
+   the (already-applied) link, kills the churn AND the cross-sub dependency.
+   *Lesson:* a perpetual diff on a cross-sub-backed attribute becomes a
+   hard CI failure even though it looks "benign" locally as Owner.
+
+Also: `data.azurerm_client_config.current` (operator KV-admin + blob-
+contributor grants) resolves to the CI identity under CI, which would
+re-point those grants — correctly BLOCKED by our ABAC allow-list
+(Key Vault Administrator isn't on it). Fix: `ignore_changes = [principal_id]`
+so they stay operator-owned.
+
+**Meta-lesson:** the generalisable break/debug seed — *run the apply
+identity end-to-end early; refresh reads far more (data planes, cross-sub
+keys, Authorization reads) than a happy-path plan suggests.* Final state:
+CI apply is a clean `0 added, 0 changed, 0 destroyed` no-op, proving the
+apply identity holds exactly what it needs and no more.
