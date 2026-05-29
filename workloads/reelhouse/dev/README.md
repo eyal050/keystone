@@ -9,21 +9,43 @@ this layer owns the spoke VNet, both peerings, and the spoke-side
 Private DNS zone links — via two aliased `azurerm` providers (one
 per subscription).
 
-## Current state — network skeleton only
+## Current state — full v1 workload
 
 | Sub-chunk | Status | Contents | Cost when applied |
 |---|---|---|---|
-| **N1** | ✅ written 2026-05-28 | RG, spoke VNet, 3 subnets, bidirectional peering, 8 spoke-side DNS zone links | €0 |
-| C1 | pending | ACA environment + Container App | tiny (consumption pricing) |
-| D1 | pending | Postgres Flexible Server B1ms + private endpoint | ~€12/mo |
-| K1 | pending | Key Vault + private endpoint | <€1/mo |
-| S1 | pending | Workload Blob storage (videos) + private endpoint | usage-based |
-| A1 | pending | APIM Developer (with on-demand pattern?) + private endpoint | ~€40/mo or on-demand |
-| F1 | pending | Front Door Standard + APIM origin | ~€30/mo base |
-| W1 | pending | Static web frontend assets | negligible |
+| **N1** | ✅ applied 2026-05-28 | RG, spoke VNet, 3 subnets, bidirectional peering, 8 spoke-side DNS zone links | €0 |
+| **D1** | ✅ written 2026-05-29 | Postgres Flexible B1ms (single AZ) + reelhouse database + private endpoint | ~€12/mo |
+| **K1** | ✅ written 2026-05-29 | Key Vault (RBAC mode) + 3 seeded secrets + private endpoint | <€1/mo |
+| **S1** | ✅ written 2026-05-29 | Blob storage SA + videos container + private endpoint | usage-based (pennies for lab) |
+| **C1** | ✅ written 2026-05-29 | ACA env (Consumption) + Container App with MI + RBAC to KV + Blob | scale-to-zero idle, pennies when running |
+| **W1** | ✅ written 2026-05-29 | Static HTML frontend (login + upload + share + player) embedded in the Container App's Flask templates | (part of C1) |
+| ~~A1~~ | **Deferred** | APIM Developer + PE | Skipped per [ADR-0014](../../../docs/decisions/0014-defer-apim-and-front-door.md) — ACA external ingress serves as the public entry point. |
+| ~~F1~~ | **Deferred** | Front Door Standard | Skipped per [ADR-0014](../../../docs/decisions/0014-defer-apim-and-front-door.md). |
 
-`N1` is just the network plumbing — no compute, no data plane. It exists
-so that future sub-chunks have a place to land.
+## What's where
+
+| File | Contents |
+|---|---|
+| `network.tf` | Spoke VNet + subnets + peerings + DNS links (N1) |
+| `workload.tf` | Shared workload RG (data + compute plane) |
+| `postgres.tf` | Postgres Flexible Server + DB + PE (D1) |
+| `keyvault.tf` | Key Vault + operator RBAC + 3 seeded secrets + PE (K1) |
+| `storage.tf` | Blob SA + videos container + PE (S1) |
+| `aca.tf` | ACA env + Container App + MI + RBAC to KV/Blob (C1) |
+| `data.tf` | Cross-layer remote-state reads (connectivity + management) |
+| `providers.tf` | Two aliased providers (workload + connectivity) |
+| `outputs.tf` | Spoke + workload outputs for future consumers |
+
+## Cost shape
+
+Continuous (always-on):
+- Postgres B1ms: **~€12/mo** (1 vCPU burstable, 32 GB storage)
+- Key Vault: pennies/month
+- Blob storage: pennies/month at lab data volumes
+- Container Apps env (Consumption): **€0 idle** (scale-to-zero), pennies when serving requests
+
+**Total idle cost contribution from this workload: ~€13/mo.** Postgres
+is the only resource that bills continuously regardless of traffic.
 
 ## N1: what gets created
 

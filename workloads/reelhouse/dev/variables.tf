@@ -67,6 +67,12 @@ variable "spoke_address_space" {
   default     = ["10.20.0.0/20"]
 }
 
+variable "workload_image" {
+  description = "Container image for the ReelHouse API Container App. Defaults to Microsoft's aci-helloworld placeholder so Terraform applies cleanly before the real image exists. Swap with `ghcr.io/eyal050/reelhouse-api:latest` (or wherever you push the built image from `app/api/Dockerfile`) and re-apply once available."
+  type        = string
+  default     = "mcr.microsoft.com/azuredocs/aci-helloworld:latest"
+}
+
 variable "required_tags" {
   description = "Tags applied to every resource in this layer. Environment=dev per ADR-0008 (the policy in 10-management-groups enforces the enum)."
   type        = map(string)

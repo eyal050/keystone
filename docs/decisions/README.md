@@ -31,3 +31,4 @@ ADRs follow a trimmed [MADR](https://adr.github.io/madr/) shape:
 | [0011](0011-identity-collapsed-into-management.md) | Identity layer collapses into Management subscription (MCA quota) | Accepted |
 | [0012](0012-adopt-lab-foundation-as-workload-sub.md) | Adopt pre-existing `lab-foundation` sub as the workload host (brownfield) | Accepted |
 | [0013](0013-workload-owns-spoke-network.md) | Workload layer owns the spoke VNet, both peerings, and spoke DNS zone links (via provider aliasing) | Accepted |
+| [0014](0014-defer-apim-and-front-door.md) | Defer APIM + Front Door in workload (cost/learning trade; ACA external ingress as public entry) | Accepted |

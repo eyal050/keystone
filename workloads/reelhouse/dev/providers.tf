@@ -18,9 +18,17 @@
 # parent resource" error at plan time.
 
 # Default provider — workload sub (lab-foundation today per ADR-0012).
+#
+# storage_use_azuread = true is REQUIRED because the workload's blob SA
+# sets `shared_access_key_enabled = false` (we use Entra/MI auth, not
+# storage keys). Without this provider flag, terraform's own polling
+# of the blob service falls back to shared-key auth and fails with
+# 403 KeyBasedAuthenticationNotPermitted.
 provider "azurerm" {
   subscription_id = var.workload_subscription_id
   tenant_id       = var.tenant_id
+
+  storage_use_azuread = true
 
   features {}
 }

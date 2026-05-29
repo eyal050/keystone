@@ -54,9 +54,15 @@ resource "azurerm_subnet" "aca" {
   virtual_network_name = azurerm_virtual_network.spoke.name
   address_prefixes     = ["10.20.0.0/23"]
 
-  # Delegation to Microsoft.App/environments will be added when ACA
-  # lands. Without the consumer present, the delegation is just
-  # bureaucracy — keeping it out for now.
+  # Delegation required by `azurerm_container_app_environment.infrastructure_subnet_id`.
+  # Azure-mandated action list for ACA env VNet injection.
+  delegation {
+    name = "Microsoft.App.environments"
+    service_delegation {
+      name    = "Microsoft.App/environments"
+      actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+    }
+  }
 }
 
 resource "azurerm_subnet" "pe" {
