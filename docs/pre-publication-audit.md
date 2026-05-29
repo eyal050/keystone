@@ -43,28 +43,38 @@ home IP — the manual grep (check 3) did. This is exactly why §6 mandates both
   period and the repo was private (operator-only access) throughout, so exposure
   was effectively nil. A home IP is not a rotatable credential. Acceptable.
 
-## Finding 2 — 🟡 Git author email in commit metadata (DEFERRED, by decision)
+## Finding 2 — 🟢 Git author email in commit metadata (ACCEPTED)
 
-- **What**: the commit author email (= `KEYSTONE_BUDGET_ALERT_EMAIL`) appears in
-  every commit's `Author:` metadata (not in any file). Visible on a public repo.
-- **Decision (2026-05-29)**: **deferred** — Eyal chose to scrub the IP only this
-  session. A commit-author email is commonly public; rewriting it requires a
-  full `git filter-repo --mailmap` pass over every commit.
-- **MUST resolve before flipping to public**: either accept the email as public,
-  or rewrite author metadata (`--mailmap`) + set `git config user.email` to a
-  `noreply` address going forward.
+- **What**: the commit author email appears in every commit's `Author:` metadata
+  (not in any file). Visible on a public repo.
+- **Decision (2026-05-29)**: **accepted as public** — Eyal chose to leave the
+  commit-author email. A commit email is commonly public and is not a credential.
+  No history rewrite required for this item.
 
-## Remaining items before actually going public
+## Final go-public verification (2026-05-29)
 
-1. **Resolve Finding 2** (author email — accept or rewrite).
-2. **Re-run this entire checklist** immediately before changing visibility
-   (history changes after this date are not covered here).
-3. **Add the required-reviewer rule** on the `workload-dev` GitHub Environment
-   and restore the `push: branches:[main]` trigger in `reelhouse-dev-apply.yml`
-   (ADR-0018) — going public makes environment protection rules available, which
-   upgrades the apply gate from manual `workflow_dispatch` to a real human
-   approval for free.
-4. Capture the re-run results here.
+Re-ran the entire §6 checklist immediately before flipping visibility:
+
+- `gitleaks` working tree: **no leaks**.
+- `gitleaks` full history: **no leaks** (47 commits).
+- Manual grep of all history for every secret value (tenant ID, all five
+  subscription IDs, billing account/profile/scope IDs, operator IP):
+  **0 matches each**.
+- `secrets-inventory.md`: complete (incl. CI/CD secrets). `.tfvars.example`:
+  full coverage.
+- Finding 1 (home IP): scrubbed from history; Finding 2 (author email): accepted.
+
+**Result: PASS.** Repo flipped to public on 2026-05-29.
+
+## Post-publication hardening (now that env protection rules are available)
+
+- **Required-reviewer gate**: added on the `workload-dev` GitHub Environment;
+  the `reelhouse-dev-apply.yml` `push: branches:[main]` trigger restored so the
+  apply gate is now a real human approval (ADR-0018), not just manual dispatch.
+
+## On every future visibility-affecting change
+
+Re-run this entire checklist — it only covers history up to the date above.
 
 ## Security review (code) — 2026-05-29
 

@@ -2,18 +2,19 @@ name: reelhouse-dev-apply
 
 # Terraform apply for workloads/reelhouse/dev.
 #
-# GATE: this repo is private on a plan without GitHub Environment protection
-# rules, so a required-reviewer approval gate cannot be created (design spec
-# 2026-05-29, "Apply gate" deviation). The human gate is therefore the
-# MANUAL workflow_dispatch trigger — apply never runs automatically on merge.
-# When the repo goes public (after the §6 audit), restore the `push` trigger
-# and add the required-reviewer rule on the workload-dev environment.
-#
-# The job still runs in the `workload-dev` environment so the tfapply UAMI's
-# environment-scoped federated subject (...:environment:workload-dev) matches
-# and its env-scoped secret (AZURE_TF_APPLY_CLIENT_ID) is readable.
+# GATE: the job runs in the `workload-dev` GitHub Environment, which carries a
+# required-reviewer protection rule (added once the repo went public, 2026-05-29
+# — ADR-0018). GitHub only mints the tfapply UAMI's environment-scoped OIDC
+# token (...:environment:workload-dev) AFTER that approval, so apply is
+# cryptographically gated on a human, not just procedurally. workflow_dispatch
+# is kept for manual re-runs.
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "workloads/reelhouse/dev/**"
+      - ".github/workflows/reelhouse-dev-apply.yml"
   workflow_dispatch:
 
 permissions:
