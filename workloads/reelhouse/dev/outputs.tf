@@ -26,8 +26,8 @@ output "subnet_ids" {
 }
 
 output "postgres_server_fqdn" {
-  description = "FQDN of the Postgres Flexible Server. Resolves to the private endpoint's IP from inside the spoke VNet (via privatelink.postgres.database.azure.com)."
-  value       = azurerm_postgresql_flexible_server.this.fqdn
+  description = "FQDN of the Postgres Flexible Server when it exists. Empty string when var.postgres_enabled=false (per ADR-0017). Resolves to the private endpoint's IP from inside the spoke VNet (via privatelink.postgres.database.azure.com) when the PE is up."
+  value       = var.postgres_enabled ? azurerm_postgresql_flexible_server.this[0].fqdn : ""
 }
 
 output "workload_resource_group_name" {
