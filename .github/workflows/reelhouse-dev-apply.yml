@@ -1,0 +1,75 @@
+name: reelhouse-dev-apply
+
+# Terraform apply for workloads/reelhouse/dev.
+#
+# GATE: this repo is private on a plan without GitHub Environment protection
+# rules, so a required-reviewer approval gate cannot be created (design spec
+# 2026-05-29, "Apply gate" deviation). The human gate is therefore the
+# MANUAL workflow_dispatch trigger — apply never runs automatically on merge.
+# When the repo goes public (after the §6 audit), restore the `push` trigger
+# and add the required-reviewer rule on the workload-dev environment.
+#
+# The job still runs in the `workload-dev` environment so the tfapply UAMI's
+# environment-scoped federated subject (...:environment:workload-dev) matches
+# and its env-scoped secret (AZURE_TF_APPLY_CLIENT_ID) is readable.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TF_VERSION: "1.9.8"
+  LAYER_DIR: workloads/reelhouse/dev
+  STATE_RG: rg-tfstate-plat-weu-001
+  STATE_CONTAINER: tfstate
+  STATE_KEY: workloads-reelhouse-dev.tfstate
+  STATE_SA: sttfstateplatweu66ff6e
+  ARM_USE_AZUREAD: "true"
+  TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+  TF_VAR_workload_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  TF_VAR_connectivity_subscription_id: ${{ secrets.AZURE_CONNECTIVITY_SUBSCRIPTION_ID }}
+  TF_VAR_mgmt_subscription_id: ${{ secrets.AZURE_MGMT_SUBSCRIPTION_ID }}
+  TF_VAR_operator_ip: ${{ secrets.OPERATOR_IP }}
+  TF_VAR_state_storage_account_name: sttfstateplatweu66ff6e
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: workload-dev   # env-scoped OIDC subject + secret
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Azure OIDC login (tfapply, read-write)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_TF_APPLY_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: terraform init
+        run: |
+          terraform -chdir="$LAYER_DIR" init \
+            -backend-config="subscription_id=${{ secrets.AZURE_MGMT_SUBSCRIPTION_ID }}" \
+            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -backend-config="resource_group_name=$STATE_RG" \
+            -backend-config="storage_account_name=$STATE_SA" \
+            -backend-config="container_name=$STATE_CONTAINER" \
+            -backend-config="key=$STATE_KEY" \
+            -backend-config="use_azuread_auth=true"
+
+      - name: terraform apply
+        run: |
+          terraform -chdir="$LAYER_DIR" apply -input=false -auto-approve -no-color
