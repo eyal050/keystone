@@ -18,6 +18,17 @@
 
 data "azurerm_client_config" "current" {}
 
+# Two deliberate lab trade-offs, justified inline below and suppressed for
+# tfsec (directives must be on the lines immediately above the resource):
+#   - specify-network-acl: public_network_access_enabled=true (see comment
+#     below) is required so the operator can write secrets over the public
+#     control plane; RBAC is the actual access control. A default-Deny ACL
+#     would block that path and the ACA app's public-endpoint + RBAC access
+#     when the PE is off (ADR-0017). Production would use default-Deny + PE-only.
+#   - no-purge: purge protection is off so `terraform destroy` can fully clean
+#     up the vault during lab iteration. Production should enable it.
+#tfsec:ignore:azure-keyvault-specify-network-acl
+#tfsec:ignore:azure-keyvault-no-purge
 resource "azurerm_key_vault" "this" {
   name                = "kv-reelhdev-${random_string.kv_suffix.result}"
   resource_group_name = azurerm_resource_group.workload.name
@@ -74,6 +85,15 @@ resource "azurerm_role_assignment" "operator_kv_admin" {
   scope                = azurerm_key_vault.this.id
   role_definition_name = "Key Vault Administrator"
   principal_id         = data.azurerm_client_config.current.object_id
+
+  # Pinned to whoever bootstrapped this grant (the human operator). Under CI,
+  # data.azurerm_client_config.current resolves to the apply UAMI, which would
+  # otherwise try to re-point this grant — a change our ABAC allow-list
+  # (rightly) blocks (Key Vault Administrator is not allow-listed). Pinning the
+  # principal keeps this an operator-owned grant; CI never touches it.
+  lifecycle {
+    ignore_changes = [principal_id]
+  }
 }
 
 # --- Initial secrets --------------------------------------------------------
@@ -88,12 +108,21 @@ resource "random_password" "reelhouse_admin" {
   special = true
 }
 
+# Captures a single creation timestamp so secret expiry is set once and stays
+# stable across applies. Using timestamp() directly would re-evaluate every
+# plan (perpetual diff); a literal date would go stale (break-debug-log
+# 2026-05-29). time_static records the first-apply instant and never changes.
+resource "time_static" "secret_created" {}
+
 resource "azurerm_key_vault_secret" "postgres_password" {
   name         = "postgres-admin-password"
   key_vault_id = azurerm_key_vault.this.id
   value        = random_password.postgres_admin.result
 
   content_type = "text/plain"
+
+  # Expiry 1 year after first apply (time_static.secret_created is stable).
+  expiration_date = timeadd(time_static.secret_created.rfc3339, "8760h")
 
   depends_on = [azurerm_role_assignment.operator_kv_admin]
 }
@@ -112,6 +141,8 @@ resource "azurerm_key_vault_secret" "postgres_connection_string" {
 
   content_type = "text/plain"
 
+  expiration_date = timeadd(time_static.secret_created.rfc3339, "8760h")
+
   depends_on = [azurerm_role_assignment.operator_kv_admin]
 }
 
@@ -121,6 +152,8 @@ resource "azurerm_key_vault_secret" "reelhouse_admin_password" {
   value        = random_password.reelhouse_admin.result
 
   content_type = "text/plain"
+
+  expiration_date = timeadd(time_static.secret_created.rfc3339, "8760h")
 
   depends_on = [azurerm_role_assignment.operator_kv_admin]
 }

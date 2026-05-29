@@ -128,6 +128,13 @@ resource "azurerm_role_assignment" "operator_blob_contributor" {
   scope                = azurerm_storage_account.videos.id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = data.azurerm_client_config.current.object_id
+
+  # Pinned to the bootstrapping operator — see operator_kv_admin in keyvault.tf
+  # for the rationale. Under CI, client_config resolves to the apply UAMI;
+  # without this the grant would drift to re-point at CI on every apply.
+  lifecycle {
+    ignore_changes = [principal_id]
+  }
 }
 
 # --- Private endpoint into snet-pe-001 --------------------------------------

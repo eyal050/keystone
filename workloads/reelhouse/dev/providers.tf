@@ -42,3 +42,14 @@ provider "azurerm" {
 
   features {}
 }
+
+# Aliased provider — management sub. Used SOLELY to assign the two CI
+# identities Storage Blob Data roles on the Terraform state container,
+# which lives in the management sub (rg-tfstate-plat-weu-001) per ADR-0007.
+provider "azurerm" {
+  alias           = "management"
+  subscription_id = var.mgmt_subscription_id
+  tenant_id       = var.tenant_id
+
+  features {}
+}

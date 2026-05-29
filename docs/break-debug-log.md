@@ -288,3 +288,24 @@ RBAC `eligible_assignment` schedules, scheduled-action start
 times, and anything in `00-bootstrap` or `05-subscriptions` that
 hardcodes a date. *None* of these have landed yet, but the audit
 hook is worth keeping when they do.
+
+## 2026-05-29 — Terraform CI slice (no break/debug practiced)
+
+No failure was injected this session — the work was building the
+workload-dev Terraform CI slice (ADR-0018). Three latent break/debug
+seeds were created for later:
+
+- **Constrained-RBAC-admin 403**: if a future PR adds a role assignment
+  whose role is NOT in the ABAC allow-list (e.g. grants Key Vault
+  Administrator, or a brand-new role), CI apply 403s on exactly that
+  resource with an authorization / `RoleAssignmentUpdateNotPermitted`
+  failure. Signal to look at first: the failing resource address in the
+  apply log names the role; cross-reference `local.cicd_allowed_role_guids`
+  in `workloads/reelhouse/dev/cicd.tf`.
+- **Plan identity cannot apply (asserted, not tested)**: the `tfplan` UAMI
+  is Reader-only; an apply with it returns 403. Documents the least-priv
+  boundary by construction.
+- **Gate is workflow_dispatch, not approval**: on this private repo the
+  required-reviewer rule is unavailable, so apply only runs on manual
+  dispatch. If someone expects apply to fire on merge and it doesn't, that
+  is by design (ADR-0018) — not a broken trigger.
