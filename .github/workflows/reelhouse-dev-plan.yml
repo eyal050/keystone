@@ -24,7 +24,16 @@ env:
   # State SA name is a public resource name, not a §6-forbidden value
   # (same class as ACR_NAME in reelhouse-build-deploy.yml).
   STATE_SA: sttfstateplatweu66ff6e
+  # Terraform authenticates via OIDC directly (NOT the azure/login CLI session —
+  # the azurerm backend can't use CLI auth for a service principal). ARM_USE_OIDC
+  # makes both the backend and the providers fetch a GitHub OIDC token and
+  # exchange it for the tfplan UAMI. ARM_USE_AZUREAD makes the state backend use
+  # that AAD token (not a storage key) against the state container.
+  ARM_USE_OIDC: "true"
   ARM_USE_AZUREAD: "true"
+  ARM_CLIENT_ID: ${{ secrets.AZURE_TF_PLAN_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
   # TF_VARs the layer needs (terraform.tfvars is gitignored). Sensitive ones
   # come from secrets; defaulted ones (location, spoke_address_space,
   # postgres_enabled=false, workload_pe_enabled=false, required_tags) are left

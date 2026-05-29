@@ -27,7 +27,13 @@ env:
   STATE_CONTAINER: tfstate
   STATE_KEY: workloads-reelhouse-dev.tfstate
   STATE_SA: sttfstateplatweu66ff6e
+  # Terraform authenticates via OIDC directly (see plan workflow). Uses the
+  # environment-scoped apply identity.
+  ARM_USE_OIDC: "true"
   ARM_USE_AZUREAD: "true"
+  ARM_CLIENT_ID: ${{ secrets.AZURE_TF_APPLY_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
   TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
   TF_VAR_workload_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
   TF_VAR_connectivity_subscription_id: ${{ secrets.AZURE_CONNECTIVITY_SUBSCRIPTION_ID }}
