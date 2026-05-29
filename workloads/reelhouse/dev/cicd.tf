@@ -153,3 +153,71 @@ resource "azurerm_role_assignment" "tfapply_rbac_admin" {
   condition_version = "2.0"
   condition         = local.rbac_admin_condition
 }
+
+# --- Cross-sub data sources ------------------------------------------------
+
+# Hub RG (connectivity sub) — scope for the narrow connectivity grant. Name
+# comes from 30-connectivity's remote state; resolve its ID via the
+# connectivity-aliased provider.
+data "azurerm_resource_group" "hub" {
+  provider = azurerm.connectivity
+  name     = data.terraform_remote_state.connectivity.outputs.hub_resource_group_name
+}
+
+# State SA (management sub) — scope for the state-container grants.
+data "azurerm_storage_account" "state" {
+  provider            = azurerm.management
+  name                = var.state_storage_account_name
+  resource_group_name = "rg-tfstate-plat-weu-001"
+}
+
+locals {
+  # ARM ID of the state blob container the azurerm backend uses.
+  state_container_id = "${data.azurerm_storage_account.state.id}/blobServices/default/containers/tfstate"
+}
+
+# --- Plan identity: Reader on the hub RG (connectivity sub) ----------------
+
+resource "azurerm_role_assignment" "tfplan_hub_reader" {
+  provider             = azurerm.connectivity
+  scope                = data.azurerm_resource_group.hub.id
+  role_definition_name = "Reader"
+  principal_id         = azurerm_user_assigned_identity.tfplan.principal_id
+  principal_type       = "ServicePrincipal"
+}
+
+# --- Apply identity: narrow connectivity grants (hub RG only) --------------
+
+resource "azurerm_role_assignment" "tfapply_hub_network" {
+  provider             = azurerm.connectivity
+  scope                = data.azurerm_resource_group.hub.id
+  role_definition_name = "Network Contributor"
+  principal_id         = azurerm_user_assigned_identity.tfapply.principal_id
+  principal_type       = "ServicePrincipal"
+}
+
+resource "azurerm_role_assignment" "tfapply_hub_dns" {
+  provider             = azurerm.connectivity
+  scope                = data.azurerm_resource_group.hub.id
+  role_definition_name = "Private DNS Zone Contributor"
+  principal_id         = azurerm_user_assigned_identity.tfapply.principal_id
+  principal_type       = "ServicePrincipal"
+}
+
+# --- State container access (management sub, via use_azuread_auth) ---------
+
+resource "azurerm_role_assignment" "tfplan_state_reader" {
+  provider             = azurerm.management
+  scope                = local.state_container_id
+  role_definition_name = "Storage Blob Data Reader"
+  principal_id         = azurerm_user_assigned_identity.tfplan.principal_id
+  principal_type       = "ServicePrincipal"
+}
+
+resource "azurerm_role_assignment" "tfapply_state_contributor" {
+  provider             = azurerm.management
+  scope                = local.state_container_id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_user_assigned_identity.tfapply.principal_id
+  principal_type       = "ServicePrincipal"
+}
