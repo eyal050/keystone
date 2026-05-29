@@ -33,7 +33,8 @@ honesty boundary.
 | `20-management` | ✅ Log Analytics workspace, DfN diagnostic-settings policy + MI roles, per-sub cost exports + budgets, overview workbook + portal dashboard |
 | `30-connectivity` | ✅ E1 hub VNet + subnets + NSG, E2 on-demand firewall + policy, E3 platform + workload Private DNS zones. **E4 dissolved per ADR-0013** (spoke peering moved to workload layer). |
 | `40-identity` | ✅ One custom role definition (Spoke Network Operator), MG-scoped; operates from Management per ADR-0011 |
-| `workloads/reelhouse/dev` | ✅ N1 spoke network skeleton — VNet + 3 subnets + bidirectional peering + 8 spoke DNS zone links. Compute / DB / KV / APIM / Front Door still pending. |
+| `workloads/reelhouse/dev` | ✅ Full v1 — N1 spoke network + D1 Postgres + K1 KV + S1 Blob + C1 ACA env + Container App + W1 frontend embedded in app. APIM + Front Door deferred per [ADR-0014](decisions/0014-defer-apim-and-front-door.md). |
+| `app/api` | ✅ Minimal Python Flask app (~250 LoC) + Dockerfile. Ready to `docker build && docker push` to GHCR; until then ACA runs `aci-helloworld` placeholder. |
 
 **Idle cost when nothing is actively running**: ~€4/mo (8 Private DNS zones × €0.50/mo).
 **Cost when firewall is up**: +~€115/mo prorated by hours.
@@ -306,9 +307,9 @@ its current resources don't iterate over subs.
 
 | State | Cost/mo | What runs |
 |---|---|---|
-| **Idle** (firewall down, default) | ~€4 | 8 Private DNS zones × €0.50 |
-| **+ Firewall up** | ~€115 | + Firewall Basic prorated (~€275/mo always-on) + 2× Standard Static PIPs (~€3.20/mo each) |
-| **+ Workload** (eventual) | + ~€30-60 estimated | + Postgres B1ms (~€12), Container Apps consumption, Key Vault standard, APIM Developer (~€40/mo if always-on), Front Door Standard base (~€30) |
+| **Idle** (firewall down, default) + workload running | **~€17** | 8 Private DNS zones × €0.50 (~€4) + Postgres B1ms (~€12) + KV/Blob/ACA-idle (~€1) |
+| **+ Firewall up** | ~€132 | + Firewall Basic prorated (~€275/mo always-on) + 2× Standard Static PIPs (~€3.20/mo each) |
+| **Originally planned (with APIM + Front Door always-on)** | ~€187 | + APIM Developer (~€40/mo) + Front Door Standard base (~€30) — deferred per ADR-0014 |
 
 Lab is operated in the **idle** state most of the time. Firewall
 gets brought up only when actively learning hub-spoke routing /
@@ -321,9 +322,10 @@ testing rules. Workload (when it lands) will follow the same
 
 | Item | Blocker |
 |---|---|
-| Workload compute / data plane (`workloads/reelhouse/dev/` C1/D1/K1/S1/A1/F1/W1) | Nothing — network skeleton is live, next chunks can land in any order. |
+| Real container image swap (replace `aci-helloworld` placeholder with built ReelHouse image) | Operator: `docker build && docker push` to GHCR, flip GHCR package visibility to public, set `TF_VAR_workload_image=ghcr.io/...:latest`, re-apply. |
+| End-to-end demo (login → upload → share → play) | Real image must be deployed first. |
 | UDR forcing spoke egress through firewall | Conditional — only meaningful when the firewall is up (ADR-0010 on-demand). Lands when firewall rules become a real concern. |
-| Workload MI definitions | In `workloads/reelhouse/dev/` alongside their consumers when each consumer lands. |
+| Real `prod` workload env (`workloads/reelhouse/prod/`) | Awaiting MCA quota raise for a dedicated workload sub. Dev currently shares `lab-foundation` per ADR-0012. |
 | GitHub Actions workflows | Per CLAUDE.md §5 — OIDC federation to Azure, per-env approvals. Local applies work today; CI is the next step once a layer churns. |
 | Going-public audit | Per CLAUDE.md §6 — gitleaks full-history scan + secrets inventory verification before flipping repo to public. |
 
