@@ -218,3 +218,18 @@ resource "azurerm_role_assignment" "tfapply_state_contributor" {
   principal_id         = azurerm_user_assigned_identity.tfapply.principal_id
   principal_type       = "ServicePrincipal"
 }
+
+# --- Apply identity: Key Vault data plane ----------------------------------
+# The KV is RBAC-mode; Contributor grants no data-plane access. To refresh and
+# manage the azurerm_key_vault_secret resources, the apply identity needs a KV
+# data-plane role. Secrets Officer (manage secret values) — NOT Administrator
+# (which also manages RBAC/policy). The KV is public_network_access_enabled
+# (RBAC-gated, no IP lock), so this is reachable from a public CI runner.
+# This is a CI-identity-own grant (bucket 3): created by the local operator,
+# excluded from the ABAC allow-list, never written by CI itself.
+resource "azurerm_role_assignment" "tfapply_kv_secrets_officer" {
+  scope                = azurerm_key_vault.this.id
+  role_definition_name = "Key Vault Secrets Officer"
+  principal_id         = azurerm_user_assigned_identity.tfapply.principal_id
+  principal_type       = "ServicePrincipal"
+}

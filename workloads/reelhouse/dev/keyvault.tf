@@ -85,6 +85,15 @@ resource "azurerm_role_assignment" "operator_kv_admin" {
   scope                = azurerm_key_vault.this.id
   role_definition_name = "Key Vault Administrator"
   principal_id         = data.azurerm_client_config.current.object_id
+
+  # Pinned to whoever bootstrapped this grant (the human operator). Under CI,
+  # data.azurerm_client_config.current resolves to the apply UAMI, which would
+  # otherwise try to re-point this grant — a change our ABAC allow-list
+  # (rightly) blocks (Key Vault Administrator is not allow-listed). Pinning the
+  # principal keeps this an operator-owned grant; CI never touches it.
+  lifecycle {
+    ignore_changes = [principal_id]
+  }
 }
 
 # --- Initial secrets --------------------------------------------------------
@@ -99,6 +108,12 @@ resource "random_password" "reelhouse_admin" {
   special = true
 }
 
+# Captures a single creation timestamp so secret expiry is set once and stays
+# stable across applies. Using timestamp() directly would re-evaluate every
+# plan (perpetual diff); a literal date would go stale (break-debug-log
+# 2026-05-29). time_static records the first-apply instant and never changes.
+resource "time_static" "secret_created" {}
+
 resource "azurerm_key_vault_secret" "postgres_password" {
   name         = "postgres-admin-password"
   key_vault_id = azurerm_key_vault.this.id
@@ -106,17 +121,10 @@ resource "azurerm_key_vault_secret" "postgres_password" {
 
   content_type = "text/plain"
 
-  # Expiry set 1 year from creation. timeadd(timestamp(), …) + ignore_changes
-  # avoids the literal-date trap (break-debug-log 2026-05-29): a hardcoded
-  # date is correct only on the day it's written; this evaluates at apply
-  # time and is then frozen so it never churns the plan.
-  expiration_date = timeadd(timestamp(), "8760h")
+  # Expiry 1 year after first apply (time_static.secret_created is stable).
+  expiration_date = timeadd(time_static.secret_created.rfc3339, "8760h")
 
   depends_on = [azurerm_role_assignment.operator_kv_admin]
-
-  lifecycle {
-    ignore_changes = [expiration_date]
-  }
 }
 
 resource "azurerm_key_vault_secret" "postgres_connection_string" {
@@ -133,14 +141,9 @@ resource "azurerm_key_vault_secret" "postgres_connection_string" {
 
   content_type = "text/plain"
 
-  # See postgres_password for the timeadd(timestamp()) + ignore_changes rationale.
-  expiration_date = timeadd(timestamp(), "8760h")
+  expiration_date = timeadd(time_static.secret_created.rfc3339, "8760h")
 
   depends_on = [azurerm_role_assignment.operator_kv_admin]
-
-  lifecycle {
-    ignore_changes = [expiration_date]
-  }
 }
 
 resource "azurerm_key_vault_secret" "reelhouse_admin_password" {
@@ -150,14 +153,9 @@ resource "azurerm_key_vault_secret" "reelhouse_admin_password" {
 
   content_type = "text/plain"
 
-  # See postgres_password for the timeadd(timestamp()) + ignore_changes rationale.
-  expiration_date = timeadd(timestamp(), "8760h")
+  expiration_date = timeadd(time_static.secret_created.rfc3339, "8760h")
 
   depends_on = [azurerm_role_assignment.operator_kv_admin]
-
-  lifecycle {
-    ignore_changes = [expiration_date]
-  }
 }
 
 # --- Private endpoint into snet-pe-001 --------------------------------------
