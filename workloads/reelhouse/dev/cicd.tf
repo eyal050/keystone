@@ -63,3 +63,93 @@ resource "azurerm_federated_identity_credential" "tfapply_env" {
   issuer   = "https://token.actions.githubusercontent.com"
   subject  = "repo:eyal050/keystone:environment:workload-dev"
 }
+
+# --- ABAC allow-list for the apply identity's RBAC-admin grant -------------
+
+locals {
+  # App-plane roles the layer grants to application principals (app-deploy
+  # UAMI + ACA managed identity). The tfapply identity may write/delete role
+  # assignments ONLY for these. RBAC-admin / Owner / Key Vault Administrator
+  # are intentionally absent → no privilege escalation, and CI cannot touch
+  # operator grants or its own grants. GUIDs are public Azure built-in role
+  # IDs (https://learn.microsoft.com/azure/role-based-access-control/built-in-roles).
+  cicd_allowed_role_guids = [
+    "7f951dda-4ed3-4680-a7ca-43fe172d538d", # AcrPull
+    "8311e382-0749-4cb8-b61a-304f252e45ec", # AcrPush
+    "b24988ac-6180-42a0-ab88-20f7382dd24c", # Contributor
+    "4633458b-17de-408a-b874-0445c86b69e6", # Key Vault Secrets User
+    "ba92f5b4-2d11-453d-a403-e96b0029c9fe", # Storage Blob Data Contributor
+  ]
+
+  cicd_role_guids_csv = join(", ", local.cicd_allowed_role_guids)
+
+  # Write checks @Request, delete checks @Resource — Microsoft's documented
+  # "constrain roles" pattern for delegating role-assignment management.
+  rbac_admin_condition = <<-COND
+    (
+     (
+      !(ActionMatches{'Microsoft.Authorization/roleAssignments/write'})
+     )
+     OR
+     (
+      @Request[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {${local.cicd_role_guids_csv}}
+     )
+    )
+    AND
+    (
+     (
+      !(ActionMatches{'Microsoft.Authorization/roleAssignments/delete'})
+     )
+     OR
+     (
+      @Resource[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {${local.cicd_role_guids_csv}}
+     )
+    )
+  COND
+}
+
+# --- Plan identity: Reader on both workload-sub RGs ------------------------
+
+resource "azurerm_role_assignment" "tfplan_workload_reader" {
+  scope                = azurerm_resource_group.workload.id
+  role_definition_name = "Reader"
+  principal_id         = azurerm_user_assigned_identity.tfplan.principal_id
+  principal_type       = "ServicePrincipal"
+}
+
+resource "azurerm_role_assignment" "tfplan_network_reader" {
+  scope                = azurerm_resource_group.network.id
+  role_definition_name = "Reader"
+  principal_id         = azurerm_user_assigned_identity.tfplan.principal_id
+  principal_type       = "ServicePrincipal"
+}
+
+# --- Apply identity: Contributor on both workload-sub RGs ------------------
+
+resource "azurerm_role_assignment" "tfapply_workload_contributor" {
+  scope                = azurerm_resource_group.workload.id
+  role_definition_name = "Contributor"
+  principal_id         = azurerm_user_assigned_identity.tfapply.principal_id
+  principal_type       = "ServicePrincipal"
+}
+
+resource "azurerm_role_assignment" "tfapply_network_contributor" {
+  scope                = azurerm_resource_group.network.id
+  role_definition_name = "Contributor"
+  principal_id         = azurerm_user_assigned_identity.tfapply.principal_id
+  principal_type       = "ServicePrincipal"
+}
+
+# --- Apply identity: constrained RBAC-admin on the workload RG -------------
+# Contributor excludes Microsoft.Authorization/roleAssignments/write, so the
+# apply identity needs RBAC-admin to create the layer's role assignments. The
+# ABAC condition restricts it to the five app-plane roles only.
+resource "azurerm_role_assignment" "tfapply_rbac_admin" {
+  scope                = azurerm_resource_group.workload.id
+  role_definition_name = "Role Based Access Control Administrator"
+  principal_id         = azurerm_user_assigned_identity.tfapply.principal_id
+  principal_type       = "ServicePrincipal"
+
+  condition_version = "2.0"
+  condition         = local.rbac_admin_condition
+}
