@@ -219,6 +219,29 @@ resource "azurerm_role_assignment" "tfapply_state_contributor" {
   principal_type       = "ServicePrincipal"
 }
 
+# Management-plane Reader on the state container. The Storage Blob Data roles
+# above are DATA-plane only (read/write state blobs) and do NOT include
+# Microsoft.Authorization/roleAssignments/read — which Terraform needs to
+# refresh these very role-assignment resources (they live AT the container
+# scope). Without this, CI apply 403s reading its own state grants. Reader is
+# scoped to the container only. (When the state grants relocate to the
+# management layer in the CI fan-out, this coupling disappears.)
+resource "azurerm_role_assignment" "tfplan_state_rbac_reader" {
+  provider             = azurerm.management
+  scope                = local.state_container_id
+  role_definition_name = "Reader"
+  principal_id         = azurerm_user_assigned_identity.tfplan.principal_id
+  principal_type       = "ServicePrincipal"
+}
+
+resource "azurerm_role_assignment" "tfapply_state_rbac_reader" {
+  provider             = azurerm.management
+  scope                = local.state_container_id
+  role_definition_name = "Reader"
+  principal_id         = azurerm_user_assigned_identity.tfapply.principal_id
+  principal_type       = "ServicePrincipal"
+}
+
 # --- Apply identity: Key Vault data plane ----------------------------------
 # The KV is RBAC-mode; Contributor grants no data-plane access. To refresh and
 # manage the azurerm_key_vault_secret resources, the apply identity needs a KV
