@@ -172,6 +172,28 @@ create the state storage account in this subscription.
   `platform-identity`, and every workload Environment — every CI job that
   needs to read remote state needs the Management sub ID.
 
+## Terraform CI/CD secrets (workloads/reelhouse/dev — ADR-0018)
+
+These are **GitHub Actions secrets** (not `~/.keystone/secrets.env` values),
+consumed by `reelhouse-dev-plan.yml` / `reelhouse-dev-apply.yml`. They are set
+once after the first local apply of the dev layer creates the CI identities.
+
+- **`AZURE_TF_PLAN_CLIENT_ID`** (repo secret) — client ID of the read-only
+  `tfplan` UAMI. Retrieve: `terraform -chdir=workloads/reelhouse/dev output -raw
+  tfplan_client_id`. Format: GUID. Used by the plan workflow on PRs.
+- **`AZURE_TF_APPLY_CLIENT_ID`** (`workload-dev` **environment** secret) — client
+  ID of the read-write `tfapply` UAMI. Retrieve: `… output -raw tfapply_client_id`.
+  Format: GUID. Environment-scoped so only the gated apply job can read it.
+- **`AZURE_CONNECTIVITY_SUBSCRIPTION_ID`** (repo secret) — connectivity sub GUID
+  (= `KEYSTONE_PLATFORM_CONNECTIVITY_SUBSCRIPTION_ID`). For `TF_VAR_connectivity_subscription_id`.
+- **`AZURE_MGMT_SUBSCRIPTION_ID`** (repo secret) — management sub GUID
+  (= `KEYSTONE_PLATFORM_MANAGEMENT_SUBSCRIPTION_ID`). Backend-config + `TF_VAR_mgmt_subscription_id`.
+- **`OPERATOR_IP`** (repo secret) — operator public IP (= `KEYSTONE_OPERATOR_IP`).
+  For `TF_VAR_operator_ip` (videos SA allowlist, ADR-0016).
+
+Pre-existing reused secrets: `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` (workload
+sub), `AZURE_CLIENT_ID` (app-deploy UAMI, ADR-0015).
+
 ## Adding a new secret
 
 When a new sensitive value enters the project:

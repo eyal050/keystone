@@ -20,7 +20,8 @@ On 2026-05-29 the operator (Eyal) hit a real ergonomic problem:
 
 > *"I can't see the content on the videos storage blob"* — Azure
 > Portal browse returned HTTP 403 with the storage firewall rejecting
-> the operator's public IP (`***REDACTED-IP-SEE-SECRETS-ENV***`).
+> the operator's public IP (sourced from `KEYSTONE_OPERATOR_IP` in
+> `~/.keystone/secrets.env`; never committed — see CLAUDE.md §6).
 
 The problem is structural, not a misconfiguration:
 
