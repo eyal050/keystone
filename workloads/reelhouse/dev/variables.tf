@@ -67,6 +67,18 @@ variable "spoke_address_space" {
   default     = ["10.20.0.0/20"]
 }
 
+variable "postgres_enabled" {
+  description = "Whether the Postgres Flexible Server + DB + PE + connection-string KV secret exist. Per ADR-0017 the default is OFF — Postgres is brought up only when DB-backed workload features are needed. Provisioning is ~10-15 min on bring-up. Data is lost on destroy (no backup retention)."
+  type        = bool
+  default     = false
+}
+
+variable "workload_pe_enabled" {
+  description = "Whether the workload-side private endpoints (KV + Blob) exist. Per ADR-0017 the default is OFF — operator toggles per session. ACA Container App still reaches KV via the public endpoint + RBAC when PE is off; Blob is firewalled to operator IP only and won't be reachable from ACA without its PE."
+  type        = bool
+  default     = false
+}
+
 variable "operator_ip" {
   description = "Operator's current public IP, allowlisted on the workload storage account for ad-hoc portal / az CLI inspection (per ADR-0016). Empty string means no allowlist (PE-only, no operator access). When the operator's residential IP changes, update KEYSTONE_OPERATOR_IP in ~/.keystone/secrets.env and re-apply."
   type        = string

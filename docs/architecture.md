@@ -307,9 +307,16 @@ its current resources don't iterate over subs.
 
 | State | Cost/mo | What runs |
 |---|---|---|
-| **Idle** (firewall down, default) + workload running | **~€17** | 8 Private DNS zones × €0.50 (~€4) + Postgres B1ms (~€12) + KV/Blob/ACA-idle (~€1) |
-| **+ Firewall up** | ~€132 | + Firewall Basic prorated (~€275/mo always-on) + 2× Standard Static PIPs (~€3.20/mo each) |
+| **Fully idle** (firewall down, PG off, workload PEs off) — DEFAULT | **~€7** | 8 Private DNS zones × €0.50 (~€4) + ACR Basic (~€3) + tiny KV/Blob storage |
+| **+ Workload PEs on** (session active, no PG) | ~€21 | + KV PE + Blob PE (~€14) |
+| **+ Postgres on** (full workload session) | ~€41 | + PG Flexible B1ms (~€12) + PG PE (~€7) |
+| **+ Firewall up** | adds ~€115 | + Firewall Basic prorated + 2× Standard Static PIPs |
 | **Originally planned (with APIM + Front Door always-on)** | ~€187 | + APIM Developer (~€40/mo) + Front Door Standard base (~€30) — deferred per ADR-0014 |
+
+Per [ADR-0017](decisions/0017-on-demand-workload-data-plane.md) the
+workload data plane is on-demand: `make postgres-up`/`make postgres-down`
++ `make workload-pe-up`/`make workload-pe-down` toggle the cost-bearing
+resources. Defaults are off — lab sits at ~€7/mo when no one is using it.
 
 Lab is operated in the **idle** state most of the time. Firewall
 gets brought up only when actively learning hub-spoke routing /

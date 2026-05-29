@@ -133,6 +133,8 @@ resource "azurerm_role_assignment" "operator_blob_contributor" {
 # --- Private endpoint into snet-pe-001 --------------------------------------
 
 resource "azurerm_private_endpoint" "blob" {
+  count = var.workload_pe_enabled ? 1 : 0
+
   name                = "pe-st-reelhouse-dev-${var.location_short}-001"
   resource_group_name = azurerm_resource_group.workload.name
   location            = azurerm_resource_group.workload.location

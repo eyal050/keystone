@@ -17,6 +17,8 @@ resource "random_password" "postgres_admin" {
 }
 
 resource "azurerm_postgresql_flexible_server" "this" {
+  count = var.postgres_enabled ? 1 : 0
+
   name                = "pg-reelhouse-dev-${var.location_short}-001"
   resource_group_name = azurerm_resource_group.workload.name
   location            = azurerm_resource_group.workload.location
@@ -30,7 +32,11 @@ resource "azurerm_postgresql_flexible_server" "this" {
   sku_name   = "B_Standard_B1ms" # Burstable, 1 vCPU, 2 GB RAM
   storage_mb = 32768             # 32 GB minimum
 
-  administrator_login    = "reelhouse_admin"
+  administrator_login = "reelhouse_admin"
+  # random_password.postgres_admin is NOT count-gated — it stays stable
+  # across PG destroy/recreate cycles, so the KV-stored connection
+  # string keeps working. Don't add a `keepers` block tying it to the
+  # PG resource, or the password would regenerate on each recreate.
   administrator_password = random_password.postgres_admin.result
 
   backup_retention_days        = 7
@@ -54,8 +60,10 @@ resource "azurerm_postgresql_flexible_server" "this" {
 }
 
 resource "azurerm_postgresql_flexible_server_database" "reelhouse" {
+  count = var.postgres_enabled ? 1 : 0
+
   name      = "reelhouse"
-  server_id = azurerm_postgresql_flexible_server.this.id
+  server_id = azurerm_postgresql_flexible_server.this[0].id
   charset   = "UTF8"
   collation = "en_US.utf8"
 }
@@ -69,6 +77,8 @@ resource "azurerm_postgresql_flexible_server_database" "reelhouse" {
 # the spoke's DNS zone link makes resolvable from inside the spoke VNet.
 
 resource "azurerm_private_endpoint" "postgres" {
+  count = var.postgres_enabled ? 1 : 0
+
   name                = "pe-pg-reelhouse-dev-${var.location_short}-001"
   resource_group_name = azurerm_resource_group.workload.name
   location            = azurerm_resource_group.workload.location
@@ -76,7 +86,7 @@ resource "azurerm_private_endpoint" "postgres" {
 
   private_service_connection {
     name                           = "psc-pg-reelhouse-dev"
-    private_connection_resource_id = azurerm_postgresql_flexible_server.this.id
+    private_connection_resource_id = azurerm_postgresql_flexible_server.this[0].id
     is_manual_connection           = false
     subresource_names              = ["postgresqlServer"]
   }

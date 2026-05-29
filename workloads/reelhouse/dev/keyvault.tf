@@ -99,9 +99,16 @@ resource "azurerm_key_vault_secret" "postgres_password" {
 }
 
 resource "azurerm_key_vault_secret" "postgres_connection_string" {
+  # Conn string is meaningful only while Postgres exists (its FQDN
+  # depends on the PG server resource). When postgres_enabled=false,
+  # secret goes away with PG. App's psycopg connect would fail without
+  # this secret — that's fine, the app's only callers between sessions
+  # are health probes which don't touch PG.
+  count = var.postgres_enabled ? 1 : 0
+
   name         = "postgres-connection-string"
   key_vault_id = azurerm_key_vault.this.id
-  value        = "postgresql://reelhouse_admin:${random_password.postgres_admin.result}@${azurerm_postgresql_flexible_server.this.fqdn}:5432/reelhouse?sslmode=require"
+  value        = "postgresql://reelhouse_admin:${random_password.postgres_admin.result}@${azurerm_postgresql_flexible_server.this[0].fqdn}:5432/reelhouse?sslmode=require"
 
   content_type = "text/plain"
 
@@ -121,6 +128,8 @@ resource "azurerm_key_vault_secret" "reelhouse_admin_password" {
 # --- Private endpoint into snet-pe-001 --------------------------------------
 
 resource "azurerm_private_endpoint" "keyvault" {
+  count = var.workload_pe_enabled ? 1 : 0
+
   name                = "pe-kv-reelhouse-dev-${var.location_short}-001"
   resource_group_name = azurerm_resource_group.workload.name
   location            = azurerm_resource_group.workload.location

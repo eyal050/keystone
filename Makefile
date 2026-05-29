@@ -21,7 +21,7 @@
 SHELL := /bin/bash
 .SHELLFLAGS := -eu -o pipefail -c
 
-.PHONY: help cost fmt vend-sub firewall-up firewall-down destroy-platform destroy-workload
+.PHONY: help cost fmt vend-sub firewall-up firewall-down postgres-up postgres-down workload-pe-up workload-pe-down destroy-platform destroy-workload
 
 # Suppress the line-by-line command echo; targets are responsible for
 # their own output.
@@ -112,6 +112,37 @@ firewall-down:  ## Tear down Azure Firewall in 30-connectivity. Returns to €0 
 	./scripts/_tf-cmd.sh 30-connectivity apply -auto-approve -var=firewall_enabled=false
 	echo
 	echo "Firewall is down. Idle cost: €0."
+
+# -- Workload data plane on-demand (ADR-0017) --------------------------------
+#
+# Postgres + workload PEs are off by default. Bring them up when a
+# session needs them; tear down at end of session. Each apply runs
+# the full layer with the relevant vars flipped — Terraform handles
+# the rest of the layer as a no-op.
+
+postgres-up:  ## Provision Postgres + DB + PE + KV conn-string secret. ~10-15 min for PG. ~$20/mo while running.
+	echo "─── Bringing up Postgres Flexible B1ms + PE ───"
+	echo "Cost shape while running: ~\$$13/mo PG + ~\$$7.30/mo PE."
+	echo "Provisioning takes ~10-15 minutes."
+	echo
+	TF_VAR_postgres_enabled=true ./scripts/_tf-cmd.sh workloads/reelhouse/dev apply -auto-approve
+
+postgres-down:  ## Tear down Postgres + PE. Returns ~$20/mo to €0. DATA IS LOST — no backups.
+	echo "─── Tearing down Postgres + PE. Data will be permanently lost. ───"
+	echo
+	TF_VAR_postgres_enabled=false ./scripts/_tf-cmd.sh workloads/reelhouse/dev apply -auto-approve
+
+workload-pe-up:  ## Provision KV + Blob private endpoints. ~30s each. ~$14.60/mo while running.
+	echo "─── Bringing up workload PEs (KV + Blob) ───"
+	echo "Cost: ~\$$7.30/mo per PE × 2 = ~\$$14.60/mo while up."
+	echo
+	TF_VAR_workload_pe_enabled=true ./scripts/_tf-cmd.sh workloads/reelhouse/dev apply -auto-approve
+
+workload-pe-down:  ## Tear down KV + Blob PEs. ACA loses private path to those resources.
+	echo "─── Tearing down KV + Blob PEs ───"
+	echo "ACA → KV will fall back to public + RBAC; ACA → Blob will fail (firewalled to operator IP)."
+	echo
+	TF_VAR_workload_pe_enabled=false ./scripts/_tf-cmd.sh workloads/reelhouse/dev apply -auto-approve
 
 # -- Destroy targets ---------------------------------------------------------
 #
