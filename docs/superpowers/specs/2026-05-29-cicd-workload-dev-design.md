@@ -1,7 +1,10 @@
 # Design: Terraform CI/CD — workload-dev vertical slice
 
 - **Date**: 2026-05-29
-- **Status**: Approved (brainstorming), pending implementation plan
+- **Status**: Implemented 2026-05-29 (see ADR-0018). One deviation: the
+  required-reviewer environment gate is unavailable on this private repo's
+  plan, so the apply workflow uses a manual `workflow_dispatch` gate in the
+  interim (restore push trigger + add the rule when the repo goes public).
 - **Author**: Eyal + Claude
 - **Implements**: CLAUDE.md §5 (GitHub Actions plan/apply gates, OIDC federation,
   GitHub Environments with required reviewers), one layer at a time
