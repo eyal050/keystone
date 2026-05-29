@@ -85,3 +85,14 @@ resource "azurerm_role_assignment" "gha_containerapp_contributor" {
   role_definition_name = "Contributor"
   principal_id         = azurerm_user_assigned_identity.github_actions.principal_id
 }
+
+# ARM's "linked authorization" model: even though `az containerapp
+# update` targets the Container App, ARM verifies the caller also has
+# `Microsoft.App/managedEnvironments/join/action` on the linked ACA
+# environment. Without this, `az containerapp registry set` and
+# `az containerapp update --image` both fail with LinkedAuthorizationFailed.
+resource "azurerm_role_assignment" "gha_aca_env_contributor" {
+  scope                = azurerm_container_app_environment.this.id
+  role_definition_name = "Contributor"
+  principal_id         = azurerm_user_assigned_identity.github_actions.principal_id
+}
