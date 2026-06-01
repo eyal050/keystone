@@ -56,6 +56,11 @@ resource "azurerm_container_app_environment" "this" {
   # NOTE: ForceNew — flipping this recreates the env (and the Container App).
   internal_load_balancer_enabled = true
 
+  # Azure rejects public_network_access="Enabled" together with an internal load
+  # balancer; an internal env has no public surface to gate. Must be explicitly
+  # "Disabled" or the plan fails. Per ADR-0019.
+  public_network_access = "Disabled"
+
   # Logs to platform LAW.
   log_analytics_workspace_id = data.terraform_remote_state.management.outputs.law_id
 
