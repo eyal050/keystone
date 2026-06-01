@@ -12,7 +12,7 @@
 #   10.20.0.0/23    snet-aca-001       (Container Apps env; ACA
 #                                       consumption-mode minimum)
 #   10.20.2.0/26    snet-pe-001        (Private Endpoints)
-#   10.20.3.0/28    snet-apim-001      (API Management internal mode)
+#   10.20.3.0/28    snet-apim-001      (API Management, External VNet mode)
 #   10.20.4.0/22+   reserved           (future)
 #
 # Delegations / NSGs / route tables are added when their consumers land
