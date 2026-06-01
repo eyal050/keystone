@@ -48,6 +48,12 @@ Same shape as ADR-0010 (firewall) and ADR-0017 (data plane). Operators learn one
 
 `internal_load_balancer_enabled = true` on the ACA environment. This is a **permanent** change — not gated by `var.gateway_enabled`. ACA internal ingress is always correct for a workload that sits behind a gateway; exposing it externally when the gateway is off is a worse default security posture than "not reachable when the gateway is off." The consequence for idle state is documented below.
 
+### WAF: custom rules on Standard (DRS deferred to Premium)
+
+Front Door **Standard does not support Azure-managed rule sets** (the Microsoft Default Rule Set / DRS) — managed rules are a **Premium-tier** feature. Standard supports **custom WAF rules only**. So the WAF policy (Prevention mode) carries a custom rule that blocks common SQL-injection patterns in the query string — enough to *demonstrate* WAF blocking end-to-end (an obvious SQLi probe returns 403 from Front Door). Request rate-limiting is enforced at APIM (`rate-limit-by-key`), not duplicated at the WAF.
+
+**DRS is documented here as a deliberate tier tradeoff:** the comprehensive managed rule set would require upgrading to Front Door Premium (~€300/mo while up vs. ~€30 Standard base), which would *also* unlock Private Link origins and thus a fully-private APIM (Internal VNet mode, no public VIP). That fuller topology was considered and rejected on cost (see Alternatives). For the demonstrability driver, Standard + a custom Prevention rule + the two-layer APIM lockdown below covers the learning surface at ~4× lower cost.
+
 ### FD-only lockdown — two layers
 
 Traffic reaching APIM must come exclusively from **this** Front Door instance. Two complementary controls enforce this:
@@ -101,7 +107,8 @@ An APIM `ip-filter` policy that allows only Azure Front Door's edge IP ranges wa
 
 ## Alternatives considered
 
-- **APIM in Internal VNet mode** (private VIP only, no public surface on APIM itself). Would require an extra NVA or Azure Firewall hop for FD → APIM traffic, since FD backends must be publicly reachable. Adds ~€800/mo firewall cost or NVA complexity. External mode with FD-only lockdown achieves equivalent security for the lab at significantly lower cost and complexity.
+- **Front Door Premium + DRS managed rules + Private Link origin → APIM Internal VNet mode** (fully private: no public APIM VIP, comprehensive managed WAF, no header-check needed). The cleanest security topology. Rejected on cost: FD Premium is ~€300/mo while up vs. ~€30 for Standard — ~4× the gateway cost for a lab toggled up only for demos. The demonstrability goal (show FD → APIM → private ACA, WAF blocking, the lockdown reasoning) is met by Standard + custom WAF rule + the two-layer lockdown. Revisit if a real need for managed WAF rules or a truly-private APIM emerges.
+- **APIM in Internal VNet mode** (private VIP only, no public surface on APIM itself) **without** FD Premium. Would require an extra NVA or Azure Firewall hop for FD → APIM traffic, since a Standard FD backend must be publicly reachable. Adds ~€800/mo firewall cost or NVA complexity. External mode with FD-only lockdown achieves equivalent security for the lab at significantly lower cost and complexity.
 - **Container Apps' built-in HTTP scaling rules + custom domains** instead of APIM. Skips the API management learning surface entirely. Rejected: the goal is to demonstrate the FD → APIM → ACA pattern, not just custom domains.
 - **Always-on gateway (no `var.gateway_enabled` flag)**. Rejected: ~€70/mo always-on for a lab used infrequently. ADR-0010 and ADR-0017 established the on-demand pattern precisely for this reason.
 - **Keep ADR-0014 deferral in place indefinitely**. Remains valid on pure cost grounds. Overridden by the interview-demonstrability trigger evaluated in this ADR.

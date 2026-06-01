@@ -321,19 +321,33 @@ resource "azurerm_cdn_frontdoor_endpoint" "this" {
   tags                     = var.required_tags
 }
 
-# WAF — Prevention mode, Microsoft Default Rule Set.
+# WAF — Prevention mode, CUSTOM rules only. Front Door Standard does NOT support
+# managed rule sets (DRS); those require Premium (ADR-0019). One custom rule
+# blocks common SQLi patterns in the query string — enough to demonstrate WAF
+# blocking. Rate-limiting lives at APIM, not duplicated here.
 resource "azurerm_cdn_frontdoor_firewall_policy" "this" {
-  count                             = var.gateway_enabled ? 1 : 0
-  name                              = "wafreelhousedev001" # alnum only
-  resource_group_name               = azurerm_resource_group.workload.name
-  sku_name                          = "Standard_AzureFrontDoor"
-  enabled                           = true
-  mode                              = "Prevention"
+  count               = var.gateway_enabled ? 1 : 0
+  name                = "wafreelhousedev001" # alnum only
+  resource_group_name = azurerm_resource_group.workload.name
+  sku_name            = "Standard_AzureFrontDoor"
+  enabled             = true
+  mode                = "Prevention"
 
-  managed_rule {
-    type    = "Microsoft_DefaultRuleSet"
-    version = "2.1"
-    action  = "Block"
+  custom_rule {
+    name     = "BlockSqliPatterns"
+    enabled  = true
+    priority = 100
+    type     = "MatchRule"
+    action   = "Block"
+
+    match_condition {
+      match_variable     = "QueryString"
+      operator           = "Contains"
+      negation_condition = false
+      # Lowercase transform applied → match_values must be lowercase.
+      match_values = ["drop table", "union select", "' or ", "--", ";--"]
+      transforms   = ["Lowercase", "UrlDecode"]
+    }
   }
   tags = var.required_tags
 }

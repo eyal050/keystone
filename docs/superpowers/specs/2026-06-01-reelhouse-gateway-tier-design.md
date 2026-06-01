@@ -30,7 +30,7 @@ architectural fluency I didn't get in production."*
 internet
    │
    ▼
-Front Door Standard  ──(+ WAF, Prevention mode, Microsoft Default Rule Set)
+Front Door Standard  ──(+ WAF Prevention, custom rules only — DRS needs Premium)
    │   origin = APIM gateway public hostname (*.azure-api.net)
    ▼
 APIM Developer  (External VNet mode, public VIP, injected into snet-apim-001)
@@ -150,9 +150,12 @@ maintenance hazard. Recorded as a rejected alternative in ADR-0019.
 
 ## 7. WAF + demonstrable gateway policy
 
-- **WAF:** Prevention mode (not Detection), Microsoft Default Rule Set managed
-  rules, attached to the FD endpoint. Prevention because the story is "it
-  blocks," and a lab false-positive is a debugging opportunity, not an outage.
+- **WAF:** Prevention mode (not Detection), with **custom rules only** —
+  Front Door **Standard does not support managed rule sets (DRS); those require
+  Premium**. A custom rule blocks common SQL-injection patterns in the query
+  string, enough to demonstrate WAF blocking (SQLi probe → 403). DRS is a
+  documented Premium tradeoff (see ADR-0019 alternatives). Prevention because
+  the story is "it blocks," and a lab false-positive is a debugging opportunity.
 - **APIM gateway policy beyond lockdown:** one `rate-limit-by-key` inbound
   policy — the canonical "the gateway does real work" artifact. Full OAuth/JWT
   validation is a documented future extension, not v1.
