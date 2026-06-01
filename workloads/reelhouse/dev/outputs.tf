@@ -51,7 +51,7 @@ output "container_app_name" {
 }
 
 output "container_app_fqdn" {
-  description = "Public FQDN of the Container App (*.azurecontainerapps.io). Used by the workflow's final verification step (curl /healthz) and by humans visiting the running app."
+  description = "Internal FQDN of the Container App. Post-ADR-0019 the ACA env is internal-only, so this resolves to a private IP via the per-env DNS zone and is reachable only from inside the spoke VNet (by APIM) — not from the internet. The public entry point is frontdoor_endpoint_hostname when gateway_enabled."
   value       = azurerm_container_app.api.ingress[0].fqdn
 }
 
@@ -71,4 +71,9 @@ output "tfapply_client_id" {
   description = "Client ID of the read-write Terraform apply identity. Set as workload-dev environment secret AZURE_TF_APPLY_CLIENT_ID."
   value       = azurerm_user_assigned_identity.tfapply.client_id
   sensitive   = true
+}
+
+output "frontdoor_endpoint_hostname" {
+  description = "Public Front Door hostname for ReelHouse (null when gateway_enabled=false)."
+  value       = var.gateway_enabled ? azurerm_cdn_frontdoor_endpoint.this[0].host_name : null
 }
