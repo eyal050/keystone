@@ -10,3 +10,7 @@
 # connectivity_subscription_id = "<KEYSTONE_PLATFORM_CONNECTIVITY_SUBSCRIPTION_ID>"
 # mgmt_subscription_id         = "<KEYSTONE_PLATFORM_MANAGEMENT_SUBSCRIPTION_ID>"
 # state_storage_account_name   = "<KEYSTONE_STATE_STORAGE_ACCOUNT_NAME>"
+
+# Gateway tier (Front Door + APIM). false = idle/€0, not publicly reachable.
+# true = ~€70/mo while up, ~45min APIM provision. See ADR-0019.
+# gateway_enabled              = false

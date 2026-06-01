@@ -79,6 +79,12 @@ variable "workload_pe_enabled" {
   default     = false
 }
 
+variable "gateway_enabled" {
+  description = "When true, stand up the on-demand gateway tier (Front Door + APIM) in front of the internal ACA backend. Default false keeps idle cost at €0; when false ReelHouse is not publicly reachable (ACA is internal). See ADR-0019."
+  type        = bool
+  default     = false
+}
+
 variable "operator_ip" {
   description = "Operator's current public IP, allowlisted on the workload storage account for ad-hoc portal / az CLI inspection (per ADR-0016). Empty string means no allowlist (PE-only, no operator access). When the operator's residential IP changes, update KEYSTONE_OPERATOR_IP in ~/.keystone/secrets.env and re-apply."
   type        = string
