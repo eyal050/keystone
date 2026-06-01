@@ -41,6 +41,11 @@ resource "azurerm_api_management_api" "reelhouse" {
   path                = ""
   protocols           = ["https"]
   service_url         = "https://${azurerm_container_app.api.ingress[0].fqdn}"
+
+  # Front Door does not inject an APIM subscription key, so requests would 401
+  # if a subscription were required. The FD-only lockdown (NSG + X-Azure-FDID)
+  # is the access control here, not APIM subscriptions. Per ADR-0019.
+  subscription_required = false
 }
 
 resource "azurerm_api_management_api_operation" "wildcard" {

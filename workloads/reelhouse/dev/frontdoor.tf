@@ -1,6 +1,8 @@
 # Front Door Standard + WAF (Prevention, custom rules). Public entry point for
-# ReelHouse when gateway_enabled. Origin (APIM) and route are wired in Task 7
-# once APIM exists. Gated on gateway_enabled. Per ADR-0019.
+# ReelHouse when gateway_enabled. This file also wires the APIM origin + route
+# (below); the APIM gateway host is referenced by name, not resource attribute,
+# to avoid a dependency cycle (APIM depends on the FD profile's resource_guid).
+# Gated on gateway_enabled. Per ADR-0019.
 
 resource "azurerm_cdn_frontdoor_profile" "this" {
   count               = var.gateway_enabled ? 1 : 0

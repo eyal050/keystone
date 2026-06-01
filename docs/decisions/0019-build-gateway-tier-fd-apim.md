@@ -66,7 +66,7 @@ An inbound rule allows TCP 443 only from the `AzureFrontDoor.Backend` service ta
 
 ```xml
 <check-header name="X-Azure-FDID" failed-check-httpcode="403"
-              failed-check-error-message="Forbidden" ignore-case="false">
+              failed-check-error-message="Forbidden" ignore-case="true">
     <value>{{front-door-instance-id}}</value>
 </check-header>
 ```
@@ -100,6 +100,13 @@ An APIM `ip-filter` policy that allows only Azure Front Door's edge IP ranges wa
 - **Idle = workload NOT publicly reachable**: ACA's ingress flip to internal is permanent. When `gateway_enabled = false`, the workload has no public surface — not even the `*.azurecontainerapps.io` URL that ADR-0014 relied on. This **reverses ADR-0014's "workload always reachable, gateway optional" principle**. The reversal is deliberate: idle security posture (no public surface) is arguably better, and the demonstrability driver no longer requires the always-reachable shortcut.
 - **ACA environment recreation is destructive (ForceNew)**: `internal_load_balancer_enabled` forces replacement of the ACA environment. This is a one-time destructive event. The CI workflow (`reelhouse-build-deploy`) must re-run after the flip to repopulate the Container App image, since the recreated environment will be empty.
 - **No IP pinning on FD lockdown**: the NSG + header check approach does not hard-pin FD source IPs (by design, per the rejected-alternative reasoning above). Operators should be aware that the NSG service-tag rule is broad; the header check is what actually makes the lockdown tenant-specific.
+
+### Apply-time watch-items (validate/plan pass; these are the apply risks)
+
+The whole tier passes `terraform validate` and `terraform plan` cleanly. Two things are only resolvable at apply (the ~45-min APIM milestone), flagged here so a failure is diagnosed fast rather than mysterious:
+
+1. **Wildcard operation `method = "*"`** on the catch-all API. The azurerm provider accepts it at validate/plan, and it is the semantically-correct "all verbs" intent. If Azure rejects `"*"` at apply, the fix is to replace the single wildcard operation with explicit per-verb operations (at minimum `GET` + `POST`, which is what the ReelHouse Flask app uses) sharing `url_template = "/*"`. This is a strong break/debug seed.
+2. **APIM stv1 vs stv2 NSG rules.** The subnet NSG follows the stv2 rule set (443 + 3443 + 6390). Developer-tier instances provisioned in westeurope today land on stv2, so this is correct; if an instance ever lands on stv1, it additionally requires inbound 80 and APIM will fail to provision until the rule is added.
 
 ## Interview soundbite
 

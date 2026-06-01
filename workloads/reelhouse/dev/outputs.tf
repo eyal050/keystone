@@ -51,7 +51,7 @@ output "container_app_name" {
 }
 
 output "container_app_fqdn" {
-  description = "Public FQDN of the Container App (*.azurecontainerapps.io). Used by the workflow's final verification step (curl /healthz) and by humans visiting the running app."
+  description = "Internal FQDN of the Container App. Post-ADR-0019 the ACA env is internal-only, so this resolves to a private IP via the per-env DNS zone and is reachable only from inside the spoke VNet (by APIM) — not from the internet. The public entry point is frontdoor_endpoint_hostname when gateway_enabled."
   value       = azurerm_container_app.api.ingress[0].fqdn
 }
 
