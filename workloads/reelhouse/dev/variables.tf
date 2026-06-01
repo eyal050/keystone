@@ -124,3 +124,9 @@ variable "required_tags" {
     error_message = "required_tags must conform to the enumerated values in ADR-0008."
   }
 }
+
+variable "apim_publisher_email" {
+  description = "APIM publisher email (required by APIM; not a secret, but keep personal addresses out of the public repo — use a role/alias). See CLAUDE.md §6."
+  type        = string
+  default     = "platform@reelhouse.invalid"
+}
