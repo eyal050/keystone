@@ -361,3 +361,41 @@ identity end-to-end early; refresh reads far more (data planes, cross-sub
 keys, Authorization reads) than a happy-path plan suggests.* Final state:
 CI apply is a clean `0 added, 0 changed, 0 destroyed` no-op, proving the
 apply identity holds exactly what it needs and no more.
+
+### 2026-06-01 — Gateway tier build (ADR-0019): two `plan`-only catches + apply-time seeds
+
+No *deliberate* break/debug was practiced this session — it was a build
+session (Front Door + APIM gateway tier, ADR-0019). But the build itself
+surfaced failures worth banking, all of which `terraform validate` waved
+through and only a real `terraform plan`/apply caught:
+
+1. **`validate` green, `plan` red — ACA internal env.** Flipping
+   `internal_load_balancer_enabled = true` validated fine, but `plan`
+   failed: *"`public_network_access` cannot be `Enabled` when
+   `internal_load_balancer_enabled` is set to `true`."* Fix:
+   `public_network_access = "Disabled"` on the env. And a second trap on
+   top: the obvious-looking `public_network_access_enabled` (bool) is
+   *unsupported* — the real azurerm 4.x argument is the string
+   `public_network_access`. **Signal to look at first:** run `plan`, not
+   just `validate`, on any networking-mode flip; provider CustomizeDiff
+   rules and Azure's own constraints only fire there.
+
+2. **FD Standard can't do managed WAF rules.** The spec assumed Front Door
+   Standard + Microsoft Default Rule Set (DRS). DRS / managed rules are a
+   **Premium-only** feature; Standard supports custom rules only. Caught
+   in design review before code. **Signal:** tier-feature matrices — "WAF
+   on Front Door" support differs sharply between Standard and Premium.
+
+**Apply-time seeds (not yet hit — these are for the Task 9 milestone):**
+- **APIM wildcard operation `method = "*"`** validates and plans clean; if
+  Azure rejects it at apply, split into per-verb operations sharing
+  `url_template = "/*"`. Signal: a 404/400 on the apply of
+  `azurerm_api_management_api_operation`.
+- **FD → APIM → ACA returns 401** would mean the APIM API still requires a
+  subscription key (FD injects none). Pre-empted by `subscription_required
+  = false`; if it recurs, that's the field to check first.
+
+**Meta-lesson:** `terraform validate` proves *syntax + known schema*, not
+*provider business rules or Azure-side constraints*. For any change that
+touches a resource's networking mode or tier, a real `plan` (and ideally a
+scoped apply) is the only honest gate.
