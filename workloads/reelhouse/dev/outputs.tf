@@ -72,3 +72,8 @@ output "tfapply_client_id" {
   value       = azurerm_user_assigned_identity.tfapply.client_id
   sensitive   = true
 }
+
+output "frontdoor_endpoint_hostname" {
+  description = "Public Front Door hostname for ReelHouse (null when gateway_enabled=false)."
+  value       = var.gateway_enabled ? azurerm_cdn_frontdoor_endpoint.this[0].host_name : null
+}

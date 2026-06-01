@@ -142,3 +142,93 @@ flexible but a sensible sequence is: D1 (Postgres + PE) → K1 (KV +
 PE) → S1 (Blob + PE) → C1 (ACA + Container App that consumes
 Postgres/KV/Blob) → A1 (APIM in front of ACA) → F1 (Front Door in
 front of APIM) → W1 (static frontend behind Front Door).
+
+## Gateway tier (on-demand, ADR-0019)
+
+### What it is
+
+The gateway tier adds a full public-ingress stack in front of the
+ACA backend: **Front Door Standard** (with a WAF policy in Prevention
+mode) → **APIM Developer** (External VNet mode, joined to
+`snet-apim-001`) → ACA (internal-only ingress after the first
+gateway-enabled apply). The tier is entirely gated on
+`gateway_enabled` (default `false`), so it costs nothing while it is
+off and the rest of the workload continues to operate.
+
+One documented tradeoff: Front Door **Standard** supports custom WAF
+rules (rate-limit, SQL injection match) but **not** managed OWASP
+DRS rule sets, which require Front Door **Premium** (~2–3× the cost).
+The SQL injection protection in this layer is therefore a hand-written
+custom rule rather than the managed DRS. This is sufficient for the
+lab; ADR-0019 records the decision.
+
+### Toggle up
+
+```bash
+./scripts/_tf-cmd.sh workloads/reelhouse/dev apply -var 'gateway_enabled=true'
+```
+
+Budget: **~€70/mo** while up (Front Door Standard base + APIM
+Developer). APIM takes approximately 45 minutes to provision on first
+apply — this is expected; do not interrupt the apply.
+
+### Toggle down
+
+```bash
+./scripts/_tf-cmd.sh workloads/reelhouse/dev apply -var 'gateway_enabled=false'
+```
+
+Cost drops to **~€0** for the gateway tier. When the gateway is down
+the ACA environment remains intact but its ingress is **internal only
+— ReelHouse is not publicly reachable** until the gateway is toggled
+back up.
+
+### ⚠️ First-apply ordering (read before running)
+
+The very first `gateway_enabled=true` apply flips the ACA environment
+from external to internal ingress (`internal_load_balancer_enabled =
+true`). Because this attribute is `ForceNew`, Azure **recreates the
+ACA environment and the Container App** — this is expected and
+unavoidable.
+
+After recreation the Container App has **no image**: the image field
+is under `ignore_changes` lifecycle (owned by CI per ADR-0015), so
+Terraform does not restore it. **You must re-run the
+`reelhouse-build-deploy` GitHub Actions workflow immediately after
+this apply** to push the image back into the Container App, or the
+app will not serve traffic.
+
+Sequence:
+
+1. `apply -var 'gateway_enabled=true'` — wait for completion (~45 min
+   for APIM).
+2. Trigger the `reelhouse-build-deploy` workflow in GitHub Actions.
+3. Wait for the workflow to complete, then proceed to verification
+   below.
+
+### Verification runbook
+
+Run these after the `gateway_enabled=true` apply and image redeploy
+have both completed successfully.
+
+1. `curl https://<frontdoor_endpoint_hostname>/` returns the ReelHouse
+   app — confirms the full Front Door → APIM → ACA path is working
+   end to end.
+
+2. `curl https://apim-reelhouse-dev-<region>-001.azure-api.net/`
+   directly returns `403` or connection refused — confirms the APIM
+   lockdown is effective (NSG drops traffic whose source is not
+   Front Door, or the APIM policy rejects requests missing the
+   `X-Azure-FDID` header).
+
+3. `curl "https://<frontdoor_endpoint_hostname>/?q=1';DROP TABLE users;--"`
+   returns `403` from Front Door — confirms the WAF custom rule is
+   matching SQL injection patterns in Prevention mode.
+
+4. A burst of more than 100 requests within 60 seconds from a single
+   IP starts returning `429` — confirms the APIM rate-limit policy is
+   enforced.
+
+5. `./scripts/_tf-cmd.sh workloads/reelhouse/dev apply -var 'gateway_enabled=false'`
+   removes Front Door and APIM; ReelHouse is no longer publicly
+   reachable; the ACA environment and Container App survive intact.
