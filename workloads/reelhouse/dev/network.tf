@@ -139,3 +139,64 @@ resource "azurerm_private_dns_zone_virtual_network_link" "spoke" {
 
   tags = var.required_tags
 }
+
+# NSG for the APIM subnet. External-VNet APIM REQUIRES an NSG (its internal LB
+# is secure-by-default and rejects all inbound until explicitly allowed). Client
+# inbound is restricted to the AzureFrontDoor.Backend service tag (lockdown
+# layer 1 — ADR-0019), plus the mandatory APIM management + LB-probe rules.
+# Gated on gateway_enabled because the subnet is empty when the gateway is off.
+resource "azurerm_network_security_group" "apim" {
+  count               = var.gateway_enabled ? 1 : 0
+  name                = "nsg-apim-reelhouse-dev-${var.location_short}-001"
+  resource_group_name = azurerm_resource_group.network.name
+  location            = azurerm_resource_group.network.location
+  tags                = var.required_tags
+
+  # Client traffic: only from Azure Front Door (lockdown layer 1).
+  security_rule {
+    name                       = "AllowFrontDoorInbound"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "443"
+    source_address_prefix      = "AzureFrontDoor.Backend"
+    destination_address_prefix = "VirtualNetwork"
+  }
+
+  # Mandatory: APIM management endpoint (control plane).
+  security_rule {
+    name                       = "AllowApiManagementInbound"
+    priority                   = 110
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "3443"
+    source_address_prefix      = "ApiManagement"
+    destination_address_prefix = "VirtualNetwork"
+  }
+
+  # Mandatory: Azure Load Balancer health probe.
+  security_rule {
+    name                       = "AllowAzureLoadBalancerInbound"
+    priority                   = 120
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "6390"
+    source_address_prefix      = "AzureLoadBalancer"
+    destination_address_prefix = "VirtualNetwork"
+  }
+  # Outbound: APIM stv2 needs Storage, AzureActiveDirectory, AzureKeyVault, SQL,
+  # AzureMonitor, EventHub on the default Allow-all outbound. We do not restrict
+  # outbound here (default rules permit it). Documented in ADR-0019.
+}
+
+resource "azurerm_subnet_network_security_group_association" "apim" {
+  count                     = var.gateway_enabled ? 1 : 0
+  subnet_id                 = azurerm_subnet.apim.id
+  network_security_group_id = azurerm_network_security_group.apim[0].id
+}
