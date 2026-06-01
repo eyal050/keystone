@@ -67,3 +67,52 @@ resource "azurerm_cdn_frontdoor_security_policy" "this" {
     }
   }
 }
+
+resource "azurerm_cdn_frontdoor_origin_group" "apim" {
+  count                    = var.gateway_enabled ? 1 : 0
+  name                     = "og-apim"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.this[0].id
+
+  load_balancing {}
+
+  health_probe {
+    interval_in_seconds = 100
+    path                = "/status-0123456789abcdef" # APIM default health endpoint
+    protocol            = "Https"
+    request_type        = "GET"
+  }
+}
+
+# Origin = APIM's public gateway hostname. FD reaches APIM over the internet
+# (Standard FD can't use a private origin); the NSG + X-Azure-FDID header keep
+# APIM reachable only through THIS Front Door. The gateway host is deterministic
+# (<apim-name>.azure-api.net), referenced by name to avoid a dependency cycle
+# with the FD profile (APIM already depends on the FD profile's resource_guid).
+resource "azurerm_cdn_frontdoor_origin" "apim" {
+  count                          = var.gateway_enabled ? 1 : 0
+  name                           = "origin-apim"
+  cdn_frontdoor_origin_group_id  = azurerm_cdn_frontdoor_origin_group.apim[0].id
+  enabled                        = true
+  certificate_name_check_enabled = true
+
+  host_name          = "apim-reelhouse-dev-${var.location_short}-001.azure-api.net"
+  origin_host_header = "apim-reelhouse-dev-${var.location_short}-001.azure-api.net"
+  https_port         = 443
+  http_port          = 80
+  priority           = 1
+  weight             = 1
+}
+
+resource "azurerm_cdn_frontdoor_route" "default" {
+  count                         = var.gateway_enabled ? 1 : 0
+  name                          = "route-default"
+  cdn_frontdoor_endpoint_id     = azurerm_cdn_frontdoor_endpoint.this[0].id
+  cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.apim[0].id
+  cdn_frontdoor_origin_ids      = [azurerm_cdn_frontdoor_origin.apim[0].id]
+
+  supported_protocols    = ["Http", "Https"]
+  patterns_to_match      = ["/*"]
+  forwarding_protocol    = "HttpsOnly"
+  https_redirect_enabled = true
+  link_to_default_domain = true
+}
