@@ -1,12 +1,16 @@
 # C1: Azure Container Apps environment + Container App.
 #
-# Per ADR-0014 the workload's public entry point is ACA's external
-# ingress directly — no APIM, no Front Door. TLS on the ACA-managed
-# *.azurecontainerapps.io domain.
+# Per ADR-0019 the ACA env uses internal ingress only — no public
+# *.azurecontainerapps.io endpoint. APIM (in snet-apim-001, same spoke
+# VNet) is the sole caller; it resolves the app FQDN via the private
+# DNS zone in aca-dns.tf. ADR-0014's external-ingress topology has
+# been superseded by ADR-0019.
 #
 # Topology:
 #   - ACA env in snet-aca-001 (delegation to Microsoft.App/environments
 #     is set inline on the subnet in network.tf).
+#   - internal_load_balancer_enabled = true: env exposes a private IP
+#     only; APIM resolves via the aca-dns.tf wildcard A record.
 #   - System-assigned managed identity on the Container App.
 #   - The MI receives RBAC roles for KV (Secrets User) and Blob
 #     (Data Contributor). Postgres connectivity is via the KV-stored
@@ -46,10 +50,11 @@ resource "azurerm_container_app_environment" "this" {
   # delegation inline (network.tf).
   infrastructure_subnet_id = azurerm_subnet.aca.id
 
-  # External ingress endpoint (*.azurecontainerapps.io) reachable
-  # from the internet. Per ADR-0014 this is the workload's public
-  # entry point (no APIM, no Front Door).
-  internal_load_balancer_enabled = false
+  # Internal ingress: the env exposes an internal load balancer with a private
+  # IP in snet-aca-001. No public *.azurecontainerapps.io endpoint. Reached
+  # only from inside the spoke VNet (by APIM). Per ADR-0019.
+  # NOTE: ForceNew — flipping this recreates the env (and the Container App).
+  internal_load_balancer_enabled = true
 
   # Logs to platform LAW.
   log_analytics_workspace_id = data.terraform_remote_state.management.outputs.law_id
@@ -139,7 +144,7 @@ resource "azurerm_container_app" "api" {
   }
 
   ingress {
-    external_enabled = true
+    external_enabled = false # internal-only; reached via APIM in-VNet. ADR-0019.
     target_port      = 8080
     transport        = "auto"
 
